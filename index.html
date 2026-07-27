@@ -110,11 +110,12 @@ table.matrix td.label{text-align:left;font-weight:600;border-right:1px solid var
 table.matrix tr.yellow td{background:var(--yellow)}
 
 /* ───── 抽屜 ───── */
-.drawer-bg{position:fixed;inset:0;background:rgba(17,28,40,.45);z-index:50;display:flex;justify-content:flex-end}
-.drawer{width:min(760px,100%);background:var(--paper);height:100%;overflow-y:auto;box-shadow:-8px 0 30px rgba(0,0,0,.2)}
-.drawer .dhead{background:var(--navy);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:2}
-.drawer .dhead b{font-size:15px}
-.drawer .dbody{padding:20px}
+.editbar{background:var(--navy);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:10px;border-radius:6px 6px 0 0;flex-wrap:wrap}
+.editbar b{font-size:15px}
+.editbar .btn.ghost-on-navy{background:transparent;color:#fff;border-color:#43596f}
+.editbar .btn.ghost-on-navy:hover{background:rgba(255,255,255,.1)}
+.editcard{background:var(--card);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-bottom:16px}
+.editcard .dbody{padding:20px}
 .formgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 
 /* ───── Toast ───── */
@@ -161,34 +162,38 @@ table.matrix tr.yellow td{background:var(--yellow)}
 
     <!-- ═══════ Tab 1：船員資料庫 ═══════ -->
     <section id="tab-roster" class="tab-panel">
-      <div class="dropzone" id="dropzone" style="margin-bottom:16px">
-        <div class="icon">📂</div>
-        <div class="txt" style="flex:1">
-          <b>把個人資歷表拖進來（可一次全選上百個檔案）</b>
-          <span class="hint">支援 .xls / .xlsx，格式為「海上資歷 Service experience」表。同名船員將以新檔覆蓋既有資料。</span>
+      <div id="rosterListView">
+        <div class="dropzone" id="dropzone" style="margin-bottom:16px">
+          <div class="icon">📂</div>
+          <div class="txt" style="flex:1">
+            <b>把個人資歷表拖進來（可一次全選上百個檔案）</b>
+            <span class="hint">支援 .xls / .xlsx，格式為「海上資歷 Service experience」表。同名船員將以新檔覆蓋既有資料。</span>
+          </div>
+          <button class="btn dark" id="btnPickFile">選擇檔案</button>
+          <input type="file" id="fileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
         </div>
-        <button class="btn dark" id="btnPickFile">選擇檔案</button>
-        <input type="file" id="fileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
+
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+          <input type="text" id="rosterSearch" placeholder="搜尋姓名 / 英文名 / 職級" style="width:280px">
+          <span class="hint" id="rosterCount"></span>
+          <span style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn sm" id="btnAddPerson">＋ 新增船員</button>
+            <button class="btn sm" id="btnExportBackup">⬇ 匯出備份</button>
+          </span>
+        </div>
+
+        <div class="tblwrap">
+          <table class="tbl" id="rosterTable">
+            <thead><tr>
+              <th>姓名</th><th>現職</th><th>狀態</th><th>目前/最後船名</th>
+              <th>上船日/下船日</th><th>航次</th><th>海勤(年)</th><th></th>
+            </tr></thead>
+            <tbody id="rosterBody"></tbody>
+          </table>
+        </div>
       </div>
 
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-        <input type="text" id="rosterSearch" placeholder="搜尋姓名 / 英文名 / 職級" style="width:280px">
-        <span class="hint" id="rosterCount"></span>
-        <span style="margin-left:auto;display:flex;gap:8px">
-          <button class="btn sm" id="btnAddPerson">＋ 新增船員</button>
-          <button class="btn sm" id="btnExportBackup">⬇ 匯出備份</button>
-        </span>
-      </div>
-
-      <div class="tblwrap">
-        <table class="tbl" id="rosterTable">
-          <thead><tr>
-            <th>姓名</th><th>現職</th><th>狀態</th><th>目前/最後船名</th>
-            <th>上船日/下船日</th><th>航次</th><th>海勤(年)</th><th></th>
-          </tr></thead>
-          <tbody id="rosterBody"></tbody>
-        </table>
-      </div>
+      <div id="rosterEditView" hidden></div>
     </section>
 
     <!-- ═══════ Tab 2：異動作業 ═══════ -->
@@ -224,7 +229,6 @@ table.matrix tr.yellow td{background:var(--yellow)}
 </div>
 
 <div id="toast"></div>
-<div id="drawerHost"></div>
 
 <script>
 /* ════════════════════════════════════════════════════════
@@ -418,7 +422,12 @@ function showTab(id){
   document.querySelectorAll(".nav-item[data-tab]").forEach(el=> el.classList.toggle("active", el.dataset.tab===id));
   document.getElementById("pageTitle").textContent=TAB_META[id][0];
   document.getElementById("pageSub").textContent=TAB_META[id][1];
-  if(id==="roster") renderRoster();
+  if(id==="roster"){
+    document.getElementById("rosterEditView").hidden = true;
+    document.getElementById("rosterEditView").innerHTML = "";
+    document.getElementById("rosterListView").hidden = false;
+    renderRoster();
+  }
   if(id==="change") renderChangeTab();
   if(id==="matrix") renderMatrixTab();
 }
@@ -456,7 +465,7 @@ function renderRoster(){
       <td class="mono">${cur? disp(cur.sign_on) : (last? disp(last.sign_off||last.sign_on) : "—")}</td>
       <td class="mono">${p.voyages.length}</td>
       <td class="mono">${yrs.toFixed(1)}</td>
-      <td><button class="btn sm" onclick="openPersonDrawer('${p.id}')">檢視/編輯</button></td>
+      <td><button class="btn sm" onclick="openPersonEdit('${p.id}')">檢視/編輯</button></td>
     </tr>`).join("");
 }
 function esc(s){ return String(s??"").replace(/[&<>"']/g, c=> ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -517,7 +526,7 @@ document.getElementById("btnAddPerson").addEventListener("click", async ()=>{
   const created=await sb("POST","crew_persons",{body:{name, nationality:"ROC", english:"GOOD", tanker_cert:"Oil/Chem", stcw:"Para 2", radio:"GOC"}});
   await loadAll();
   renderRoster();
-  openPersonDrawer(created[0].id);
+  openPersonEdit(created[0].id);
 });
 
 document.getElementById("btnExportBackup").addEventListener("click", ()=>{
@@ -533,55 +542,56 @@ document.getElementById("btnExportBackup").addEventListener("click", ()=>{
   }catch(e){ notify("匯出失敗："+e.message, "err"); }
 });
 
-/* ── 個人編輯抽屜 ── */
-function openPersonDrawer(personId){
+/* ── 個人編輯視圖（整頁切換，不用彈出視窗）── */
+function openPersonEdit(personId){
   const p=State.persons.get(personId);
   if(!p){ notify("找不到此船員", "err"); return; }
-  const host=document.getElementById("drawerHost");
+  document.getElementById("rosterListView").hidden = true;
+  const view=document.getElementById("rosterEditView");
+  view.hidden = false;
   const voyRows = p.voyages.map((v,i)=> voyageRow(v,i)).join("");
-  host.innerHTML = `
-  <div class="drawer-bg" onclick="if(event.target===this) closeDrawer()">
-    <div class="drawer" onclick="event.stopPropagation()">
-      <div class="dhead">
-        <b>個人資歷 · ${esc(p.name)}</b>
-        <span style="margin-left:auto;display:flex;gap:8px">
-          <button class="btn sm primary" onclick="savePersonDrawer('${p.id}')">💾 儲存</button>
-          <button class="btn sm" style="background:transparent;color:#fff;border-color:#43596f" onclick="closeDrawer()">✕ 關閉</button>
-        </span>
+  view.innerHTML = `
+  <div class="editcard">
+    <div class="editbar">
+      <button class="btn sm ghost-on-navy" onclick="backToRosterList()">← 返回列表</button>
+      <b>個人資歷 · ${esc(p.name)}</b>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn sm primary" onclick="savePersonDrawer('${p.id}')">💾 儲存</button>
+      </span>
+    </div>
+    <div class="dbody">
+      <div class="panelbox formgrid">
+        <label class="field">姓名<input type="text" id="pf-name" value="${esc(p.name)}"></label>
+        <label class="field">英文姓名<input type="text" id="pf-name_en" value="${esc(p.name_en||"")}"></label>
+        <label class="field">現職<input type="text" id="pf-rank_now" value="${esc(p.rank_now||"")}"></label>
+        <label class="field">國籍<input type="text" id="pf-nationality" value="${esc(p.nationality||"")}"></label>
+        <label class="field">進公司日<input type="date" id="pf-join_date" value="${p.join_date||""}"></label>
+        <label class="field">證書種類<input type="text" id="pf-coc" value="${esc(p.coc||"")}"></label>
+        <label class="field">發證國<input type="text" id="pf-issuing_country" value="${esc(p.issuing_country||"")}"></label>
+        <label class="field">Tanker cert<input type="text" id="pf-tanker_cert" value="${esc(p.tanker_cert||"")}"></label>
+        <label class="field">STCW V<input type="text" id="pf-stcw" value="${esc(p.stcw||"")}"></label>
+        <label class="field">電台證書<input type="text" id="pf-radio" value="${esc(p.radio||"")}"></label>
+        <label class="field">英語能力<input type="text" id="pf-english" value="${esc(p.english||"")}"></label>
       </div>
-      <div class="dbody">
-        <div class="panelbox formgrid">
-          <label class="field">姓名<input type="text" id="pf-name" value="${esc(p.name)}"></label>
-          <label class="field">英文姓名<input type="text" id="pf-name_en" value="${esc(p.name_en||"")}"></label>
-          <label class="field">現職<input type="text" id="pf-rank_now" value="${esc(p.rank_now||"")}"></label>
-          <label class="field">國籍<input type="text" id="pf-nationality" value="${esc(p.nationality||"")}"></label>
-          <label class="field">進公司日<input type="date" id="pf-join_date" value="${p.join_date||""}"></label>
-          <label class="field">證書種類<input type="text" id="pf-coc" value="${esc(p.coc||"")}"></label>
-          <label class="field">發證國<input type="text" id="pf-issuing_country" value="${esc(p.issuing_country||"")}"></label>
-          <label class="field">Tanker cert<input type="text" id="pf-tanker_cert" value="${esc(p.tanker_cert||"")}"></label>
-          <label class="field">STCW V<input type="text" id="pf-stcw" value="${esc(p.stcw||"")}"></label>
-          <label class="field">電台證書<input type="text" id="pf-radio" value="${esc(p.radio||"")}"></label>
-          <label class="field">英語能力<input type="text" id="pf-english" value="${esc(p.english||"")}"></label>
-        </div>
 
-        <div style="display:flex;align-items:center;margin:18px 0 8px">
-          <b style="font-size:14px">海上資歷（${p.voyages.length} 筆）</b>
-          <button class="btn sm" style="margin-left:auto" onclick="addVoyageRow()">＋ 新增航次</button>
-        </div>
-        <div class="tblwrap" style="max-height:none">
-          <table class="tbl" id="voyageTable">
-            <thead><tr><th>職級</th><th>船名</th><th>上船日</th><th>下船日</th><th>天數</th><th>船型</th><th>備註</th><th></th></tr></thead>
-            <tbody id="voyageBody">${voyRows}</tbody>
-          </table>
-        </div>
+      <div style="display:flex;align-items:center;margin:18px 0 8px">
+        <b style="font-size:14px">海上資歷（${p.voyages.length} 筆）</b>
+        <button class="btn sm" style="margin-left:auto" onclick="addVoyageRow()">＋ 新增航次</button>
+      </div>
+      <div class="tblwrap" style="max-height:none">
+        <table class="tbl" id="voyageTable">
+          <thead><tr><th>職級</th><th>船名</th><th>上船日</th><th>下船日</th><th>天數</th><th>船型</th><th>備註</th><th></th></tr></thead>
+          <tbody id="voyageBody">${voyRows}</tbody>
+        </table>
+      </div>
 
-        <div style="margin-top:18px;display:flex">
-          <button class="btn danger sm" onclick="deletePerson('${p.id}')">🗑 刪除此船員</button>
-          <button class="btn primary" style="margin-left:auto" onclick="savePersonDrawer('${p.id}')">💾 儲存變更</button>
-        </div>
+      <div style="margin-top:18px;display:flex">
+        <button class="btn danger sm" onclick="deletePerson('${p.id}')">🗑 刪除此船員</button>
+        <button class="btn primary" style="margin-left:auto" onclick="savePersonDrawer('${p.id}')">💾 儲存變更</button>
       </div>
     </div>
   </div>`;
+  document.getElementById("content").scrollTop = 0;
 }
 function voyageRow(v,i){
   const t=todayISO();
@@ -616,7 +626,12 @@ function fillOff(btn){
 function addVoyageRow(){
   document.getElementById("voyageBody").insertAdjacentHTML("beforeend", voyageRow({rank:"3/O", ship_name:"", sign_on:todayISO(), sign_off:null, cargo_types:["Oil/Chem"], note:""}, 999));
 }
-function closeDrawer(){ document.getElementById("drawerHost").innerHTML=""; }
+function backToRosterList(){
+  document.getElementById("rosterEditView").hidden = true;
+  document.getElementById("rosterEditView").innerHTML = "";
+  document.getElementById("rosterListView").hidden = false;
+  renderRoster();
+}
 
 async function savePersonDrawer(personId){
   const val=id=>document.getElementById(id).value.trim();
@@ -643,9 +658,8 @@ async function savePersonDrawer(personId){
     await sb("DELETE","crew_voyages",{query:`?person_id=eq.${personId}`, prefer:"return=minimal"});
     if(voyages.length) await sb("POST","crew_voyages",{body: voyages.map(v=>({...v, person_id: personId}))});
     await loadAll();
-    renderRoster();
     notify(`已儲存 ${person.name}`);
-    closeDrawer();
+    backToRosterList();
   }catch(e){ notify("儲存失敗："+e.message, "err"); }
 }
 async function deletePerson(personId){
@@ -655,9 +669,8 @@ async function deletePerson(personId){
     await sb("PATCH","crew_ship_posts",{query:`?person_id=eq.${personId}`, body:{person_id:null}});
     await sb("DELETE","crew_persons",{query:`?id=eq.${personId}`, prefer:"return=minimal"});
     await loadAll();
-    renderRoster();
     notify("已刪除該船員");
-    closeDrawer();
+    backToRosterList();
   }catch(e){ notify("刪除失敗："+e.message, "err"); }
 }
 
