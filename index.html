@@ -136,7 +136,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
 
 <aside id="sidebar">
   <div class="portal-back" style="padding:10px 14px 0">
-    <a href="請把這裡換成你的船舶檢查系統網址" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#cfe0ea;text-decoration:none;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:5px 8px;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.16)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">⟵ 回船舶檢查系統</a>
+    <a href="https://sski2468-hua.github.io/fleet-inspection/" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#cfe0ea;text-decoration:none;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:5px 8px;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.16)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">⟵ 回船舶檢查系統</a>
   </div>
   <div class="brand">
     <h1>Crew Matrix<br>工作站</h1>
@@ -146,6 +146,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
     <div class="nav-item active" data-tab="roster"><span class="num">①</span>船員資料庫</div>
     <div class="nav-item" data-tab="change"><span class="num">②</span>異動作業</div>
     <div class="nav-item" data-tab="matrix"><span class="num">③</span>Crew Matrix</div>
+    <div class="nav-item" data-tab="guide"><span class="num">📖</span>操作流程</div>
   </nav>
   <div class="foot">
     <div class="stat">資料庫：<b id="statPersons">–</b> 人・在船 <b id="statOnboard">–</b> 人</div>
@@ -179,6 +180,10 @@ table.matrix tr.yellow td{background:var(--yellow)}
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
           <input type="text" id="rosterSearch" placeholder="搜尋姓名 / 英文名 / 職級" style="width:280px">
           <span class="hint" id="rosterCount"></span>
+          <span id="bulkDeleteBar" style="display:none;align-items:center;gap:8px">
+            <span class="tag red" id="bulkSelCount"></span>
+            <button class="btn sm danger" id="btnBulkDelete">🗑 刪除已選船員</button>
+          </span>
           <span style="margin-left:auto;display:flex;gap:8px">
             <button class="btn sm" id="btnAddPerson">＋ 新增船員</button>
             <button class="btn sm" id="btnExportBackup">⬇ 匯出備份</button>
@@ -188,6 +193,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
         <div class="tblwrap">
           <table class="tbl" id="rosterTable">
             <thead><tr>
+              <th style="width:34px"><input type="checkbox" id="rosterSelectAll"></th>
               <th>姓名</th><th>現職</th><th>狀態</th><th>目前/最後船名</th>
               <th>上船日/下船日</th><th>航次</th><th>海勤(年)</th><th></th>
             </tr></thead>
@@ -219,13 +225,67 @@ table.matrix tr.yellow td{background:var(--yellow)}
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <select id="matrixShipSel" style="font-weight:700;min-width:180px"></select>
         <span style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn sm" id="btnImportShips">📥 匯入船舶配置（SE 總表）</button>
           <button class="btn sm" id="btnShipConfig">⚙ 船舶／職位設定</button>
           <button class="btn sm primary" id="btnExportMatrix">⬇ 匯出 Excel</button>
         </span>
+        <input type="file" id="shipFileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
       </div>
       <div id="shipConfigHost"></div>
       <div class="matrixwrap"><table class="matrix" id="matrixTable"></table></div>
       <p class="hint" style="margin-top:10px">黃色列為 SIRE 檢查重點年資。計算規則：Cadet 期間不計入職級年資；在船中航次以「今天」計算天數；「Years on this type of tanker」依船舶配置中設定的船型計算。</p>
+    </section>
+
+    <!-- ═══════ Tab 4：操作流程 ═══════ -->
+    <section id="tab-guide" class="tab-panel" hidden>
+      <div class="panelbox" style="margin-bottom:16px">
+        <p class="hint" style="font-size:13px;line-height:1.9">
+          這份系統取代了「複製個人資歷表貼到船舶 SE 檔」的舊流程。<b style="color:var(--ink)">個人資歷是唯一的資料來源</b>，
+          Crew Matrix 直接從個人資歷即時算出來，不需要再手動搬資料。以下依三個分頁，說明常見操作的完整步驟。
+        </p>
+      </div>
+
+      <div class="panelbox" style="margin-bottom:16px">
+        <b style="font-size:15px">① 船員資料庫</b>
+        <ol style="margin:10px 0 0;padding-left:20px;font-size:13.5px;line-height:2">
+          <li><b>匯入個人資歷表</b>——把 .xls / .xlsx 個人資歷檔拖進頁面上方的方框，可一次選取上百個檔案。系統會自動讀出姓名、證書、國籍與所有航次紀錄。<span class="hint">同名船員再次匯入時會以新檔整批覆蓋，適合用來「重新整理某人的資料」。</span></li>
+          <li><b>搜尋 / 檢視 / 編輯</b>——用上方搜尋框依姓名、英文名或職級篩選；點任一列右側「檢視/編輯」會切換到整頁編輯畫面（不是彈出視窗），可直接改基本資料、新增或刪除航次，改完按「返回列表」即回到名單。</li>
+          <li><b>手動新增船員</b>——沒有 Excel 檔、想直接在網站上建一筆新資料時用「＋ 新增船員」，會建立一筆空白資料並直接進入編輯畫面。</li>
+          <li><b>批次刪除船員</b>——在每一列左側勾選要刪除的船員（表頭打勾可全選目前顯示的名單），畫面上方會出現「🗑 刪除已選船員」按鈕，確認後會一次刪除這些人的所有航次紀錄與基本資料，並自動解除他們在任何船舶職位表上的指派。<b style="color:var(--bad)">此動作無法復原，刪除前請再三確認。</b></li>
+          <li><b>匯出備份</b>——右上角「⬇ 匯出備份」會把目前資料庫全部匯出成 Excel（基本資料＋全部航次兩張分頁），建議定期備份留存。</li>
+        </ol>
+      </div>
+
+      <div class="panelbox" style="margin-bottom:16px">
+        <b style="font-size:15px">② 異動作業</b>
+        <ol style="margin:10px 0 0;padding-left:20px;font-size:13.5px;line-height:2">
+          <li>上方選單選擇要辦理異動的<b>船舶</b>。</li>
+          <li>職位板上點選要異動的<b>職位</b>（例如 3/O），下方會展開電子異動單。</li>
+          <li>異動單左邊「下船 SIGN-OFF」會自動帶出目前在此職位的船員；右邊「上船 SIGN-ON」用下拉選單挑選接任的人（可留空，代表此職位暫時懸缺）；中間填<b>實際異動日</b>（異動單上紅字那一欄，不是預計日）。</li>
+          <li>按「✓ 確認異動」——系統會同時完成三件事：把原任者的航次填上下船日、幫新任者新增一筆在船中的航次、更新該職位目前的指派人員。Crew Matrix 分頁的數字會立刻反映最新狀態，不用手動重算。</li>
+          <li>如果船舶清單裡沒有要異動的船，用右上角「＋ 新增船舶」建立，會自動附上 9 個標準職位（船長／大副／二副／三副／三副(2)／輪機長／大管／二管／三管）。</li>
+        </ol>
+      </div>
+
+      <div class="panelbox" style="margin-bottom:16px">
+        <b style="font-size:15px">③ Crew Matrix</b>
+        <ol style="margin:10px 0 0;padding-left:20px;font-size:13.5px;line-height:2">
+          <li>上方選單選船，下方表格會即時算出每個職位的 Crew Matrix 數字，跟原本紙本表格格式一致，黃色列是 SIRE 檢查會看的重點年資欄位。</li>
+          <li><b>匯出 Excel</b>——會下載一個含兩張分頁的檔案：「Crew Matrix」跟印出來的格式一樣；「OCIMF貼上用」是橫向排列、一人一列，方便照著欄位順序輸入 OCIMF 網站。</li>
+          <li><b>複製整欄</b>——表格最下方每個職位下面有「複製整欄」按鈕，按一下會把該員全部欄位複製到剪貼簿（含欄位名稱），可以直接貼到 OCIMF 對照輸入，不用切換視窗核對數字。</li>
+          <li><b>船舶／職位設定</b>——可修改船名、本船船型（影響 Years on this type of tanker 的計算），以及每個職位欄要用哪個「年資職級」計算、目前指派給誰、新增或刪除職位欄。</li>
+          <li><b>匯入船舶配置（SE 總表）</b>——如果拿到新船的 SE 總表（跟舊系統格式一樣的整艘船 Crew Matrix 檔），可以直接匯入，系統會自動讀出船名與職位結構、建立好船舶與職位欄（不含船員資料，船員仍需另外在①匯入或指派）。<span class="hint">本船船型會先預設為 Chem + Oil/Chem，請匯入後務必到「船舶／職位設定」核對修正，尤其是氣體船或船型不同的船舶。已存在同名船舶時會自動略過，不會覆蓋現有資料。</span></li>
+        </ol>
+      </div>
+
+      <div class="panelbox">
+        <b style="font-size:15px">常見狀況</b>
+        <ul style="margin:10px 0 0;padding-left:20px;font-size:13.5px;line-height:2">
+          <li><b>某人同一航次代理較高職級</b>（例如 A.3/O 代 3/O）——在「船舶／職位設定」的「職位」欄可填顯示用的名稱（例如 A.3/O(未登錄)），「年資職級」欄仍填實際計算年資用的基礎職級（例如 3/O）。</li>
+          <li><b>誤刪船員</b>——目前沒有復原機制，建議刪除前先在①用「匯出備份」存一份，需要時可對照備份內容手動重新輸入。</li>
+          <li><b>畫面顯示「⚠ 個人檔無在船中航次」</b>——代表職位表上指定了某人，但這個人的資料裡目前沒有「在船中」（下船日空白）的航次，通常是異動流程漏了一步，回②異動作業重新辦理一次即可修正。</li>
+        </ul>
+      </div>
     </section>
 
   </div>
@@ -376,6 +436,56 @@ function parsePersonSheet(ws, fallbackName){
   return {person, voyages};
 }
 
+/* ── 船舶總表（XX_SE.xls）解析：批次建立船舶配置用 ──
+   規則：職級依欄位標題本身判斷（MASTER/C/O/2/O/3/O/C/E/2/E/3/E/4/E），
+   不看該欄「Certificate of Competency」實際值——因為代理較高職級的人員
+   常常持有更高的證書，若用證書判斷職級會誤判。證書欄只用來判斷
+   「這個欄位目前有沒有配置」，避免把完全空白的預留欄位也建進去。 */
+function parseShipSheet(ws){
+  const range=XLSX.utils.decode_range(ws["!ref"]);
+  const maxCol=range.e.c+1, maxRow=Math.min(range.e.r+1, 60);
+  const s=(v)=> v==null? "" : String(v).trim();
+  const cellAt=(r,c)=>{ const addr=XLSX.utils.encode_cell({r:r-1,c:c-1}); const cell=ws[addr]; return cell? cell.v : null; };
+  let shipName=null;
+  for(let r=1;r<=6 && !shipName;r++){
+    for(let c=1;c<=maxCol;c++){
+      if(s(cellAt(r,c))==="Ship Name:"){ shipName=s(cellAt(r,c+1)); break; }
+    }
+  }
+  const ORDER=[["MASTER","CAPT."],["C/O","C/O"],["2/O","2/O"],["3/O","3/O"],["C/E","C/E"],["2/E","2/E"],["3/E","3/E"],["4/E","4/E"]];
+  const FALLBACK=[["2O","2/O"],["3O","3/O"],["3E","3/E"],["4E","4/E"]];
+  function labelRank(label){
+    const L=label.toUpperCase();
+    for(const [pat,rank] of ORDER) if(L.includes(pat)) return rank;
+    for(const [pat,rank] of FALLBACK) if(L.includes(pat)) return rank;
+    return null;
+  }
+  function cocHasValue(v){
+    if(v==null) return false;
+    if(typeof v==="number") return v!==0;
+    const t=String(v).trim();
+    return t!=="" && t!=="0" && t!=="0.0";
+  }
+  const posts=[];
+  for(let r=1;r<=maxRow;r++){
+    if(s(cellAt(r,1))==="Qualification of Officers"){
+      let cocRow=null;
+      for(let r2=r+1;r2<=Math.min(r+15,maxRow);r2++){
+        if(s(cellAt(r2,1)).toLowerCase().startsWith("certificate of competency")){ cocRow=r2; break; }
+      }
+      if(!cocRow) continue;
+      for(let c=2;c<=maxCol;c++){
+        const label=cellAt(r,c), coc=cellAt(cocRow,c);
+        if(label && s(label) && cocHasValue(coc)){
+          const rank=labelRank(s(label));
+          if(rank) posts.push({post_label: s(label).replace(/\n/g," "), rank});
+        }
+      }
+    }
+  }
+  return {ship_name: shipName||"", posts};
+}
+
 /* ════════════════════════════════════════════════════════
    Crew Matrix 計算（Cadet 不計職級年資；在船中算至今日）
    ════════════════════════════════════════════════════════ */
@@ -419,6 +529,7 @@ const TAB_META={
   roster:["船員資料庫","匯入個人資歷表、搜尋、編輯"],
   change:["異動作業","辦理上船／下船，同步更新 Crew Matrix"],
   matrix:["Crew Matrix","即時計算、匯出 Excel、複製到 OCIMF"],
+  guide:["操作流程","給所有人參考的完整使用說明"],
 };
 function showTab(id){
   document.querySelectorAll(".tab-panel").forEach(el=> el.hidden = el.id!=="tab-"+id);
@@ -455,12 +566,15 @@ function renderRoster(){
     .sort((a,b)=> (a.cur?0:1)-(b.cur?0:1) || a.p.name.localeCompare(b.p.name,"zh-Hant"));
   document.getElementById("rosterCount").textContent = rows.length+" 人";
   const body=document.getElementById("rosterBody");
+  document.getElementById("rosterSelectAll").checked=false;
+  updateBulkDeleteBar();
   if(rows.length===0){
-    body.innerHTML = `<tr><td colspan="8" class="hint" style="text-align:center;padding:30px">資料庫是空的——把個人資歷 Excel 檔拖到上方即可開始。</td></tr>`;
+    body.innerHTML = `<tr><td colspan="9" class="hint" style="text-align:center;padding:30px">資料庫是空的——把個人資歷 Excel 檔拖到上方即可開始。</td></tr>`;
     return;
   }
   body.innerHTML = rows.map(({p,cur,last,yrs})=> `
     <tr>
+      <td><input type="checkbox" class="roster-chk" value="${p.id}" onchange="updateBulkDeleteBar()"></td>
       <td><b>${esc(p.name)}</b><div class="hint" style="font-size:11px">${esc(p.name_en||"")}</div></td>
       <td>${esc(p.rank_now||"—")}</td>
       <td>${cur? '<span class="tag green">在船</span>' : '<span class="tag grey">休假</span>'}</td>
@@ -472,6 +586,33 @@ function renderRoster(){
     </tr>`).join("");
 }
 function esc(s){ return String(s??"").replace(/[&<>"']/g, c=> ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ── 批次刪除船員 ── */
+function updateBulkDeleteBar(){
+  const n=document.querySelectorAll(".roster-chk:checked").length;
+  const bar=document.getElementById("bulkDeleteBar");
+  bar.style.display = n>0 ? "flex" : "none";
+  if(n>0) document.getElementById("bulkSelCount").textContent = `已選 ${n} 人`;
+}
+document.getElementById("rosterSelectAll").addEventListener("change", e=>{
+  document.querySelectorAll(".roster-chk").forEach(c=> c.checked = e.target.checked);
+  updateBulkDeleteBar();
+});
+document.getElementById("btnBulkDelete").addEventListener("click", async ()=>{
+  const ids=[...document.querySelectorAll(".roster-chk:checked")].map(c=>c.value);
+  if(!ids.length) return;
+  const names=ids.map(id=>State.persons.get(id)?.name || id).join("、");
+  if(!confirm(`確定要刪除以下 ${ids.length} 名船員？此動作無法復原：\n${names}`)) return;
+  try{
+    const inList = ids.map(id=>`"${id}"`).join(",");
+    await sb("DELETE","crew_voyages",{query:`?person_id=in.(${inList})`, prefer:"return=minimal"});
+    await sb("PATCH","crew_ship_posts",{query:`?person_id=in.(${inList})`, body:{person_id:null}});
+    await sb("DELETE","crew_persons",{query:`?id=in.(${inList})`, prefer:"return=minimal"});
+    await loadAll();
+    renderRoster();
+    notify(`已刪除 ${ids.length} 名船員`);
+  }catch(e){ notify("批次刪除失敗："+e.message, "err"); }
+});
 
 document.getElementById("rosterSearch").addEventListener("input", renderRoster);
 document.getElementById("btnPickFile").addEventListener("click", ()=> document.getElementById("fileInput").click());
@@ -842,6 +983,34 @@ function renderMatrixTab(){
 }
 document.getElementById("matrixShipSel").addEventListener("change", e=>{ matrixState.shipId=e.target.value; renderMatrixTable(); if(matrixState.configOpen) renderShipConfig(); });
 document.getElementById("btnShipConfig").addEventListener("click", ()=>{ matrixState.configOpen=!matrixState.configOpen; renderMatrixTab(); });
+
+document.getElementById("btnImportShips").addEventListener("click", ()=> document.getElementById("shipFileInput").click());
+document.getElementById("shipFileInput").addEventListener("change", e=>{ importShipFiles(e.target.files); e.target.value=""; });
+
+async function importShipFiles(fileList){
+  const files=[...fileList].filter(f=>/\.(xlsx?|xlsm)$/i.test(f.name));
+  if(!files.length){ notify("請選擇 .xls / .xlsx 船舶總表檔","err"); return; }
+  let ok=0, skip=0, fail=[];
+  for(const f of files){
+    try{
+      const buf=await f.arrayBuffer();
+      const wb=XLSX.read(buf,{type:"array"});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const {ship_name, posts}=parseShipSheet(ws);
+      if(!ship_name) throw new Error("讀不到船名（找不到 Ship Name: 欄位）");
+      if(!posts.length) throw new Error("讀不到職位結構");
+      if(State.ships.some(s=>s.name===ship_name)){ skip++; continue; }
+      const created=await sb("POST","crew_ships",{body:{name:ship_name, cargo_types:["Chem","Oil/Chem"]}});
+      const shipId=created[0].id;
+      await sb("POST","crew_ship_posts",{body: posts.map((p,i)=>({...p, ship_id:shipId, sort_order:i}))});
+      ok++;
+    }catch(e){ fail.push(`${f.name}（${e.message}）`); }
+  }
+  await loadAll();
+  renderMatrixTab();
+  notify(`匯入完成：新增 ${ok} 艘${skip? `，${skip} 艘已存在自動略過`:""}${fail.length? `，${fail.length} 個檔案失敗`:""}——本船船型先預設為 Chem+Oil/Chem，請到「船舶／職位設定」核對修正`, fail.length?"err":"ok");
+  if(fail.length) console.warn("船舶匯入失敗：\n"+fail.join("\n"));
+}
 
 function computeCols(ship){
   const today=todayISO();
