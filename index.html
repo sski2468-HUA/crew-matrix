@@ -407,6 +407,19 @@ table.matrix tr.yellow td{background:var(--yellow)}
 
       <div class="panelbox" style="margin-bottom:16px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <b style="font-size:15px">🏷 船名顯示方式</b>
+          <span class="hint">決定畫面上（下拉選單、Crew Matrix、匯出檔案）船名要顯示成哪一種，不影響資料比對邏輯</span>
+        </div>
+        <div class="segbtn" id="shipDisplaySeg">
+          <button type="button" data-v="name">中文船名</button>
+          <button type="button" data-v="code">代碼</button>
+          <button type="button" data-v="name_en">英文船名</button>
+        </div>
+        <p class="hint" style="margin-top:8px">例如：<b>中文船名</b> = 台塑康華輪　<b>代碼</b> = SE　<b>英文船名</b> = FPMC S EMERALD。缺資料的船會自動退回顯示中文船名。</p>
+      </div>
+
+      <div class="panelbox" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
           <b style="font-size:15px">🛢 船舶船型設定</b>
           <span class="hint">影響 Crew Matrix「Years on this type of tanker」的計算範圍，一次改完全部船，船舶頁面不再單獨調整</span>
           <button class="btn sm primary" style="margin-left:auto" id="btnSaveCargoTypes">💾 儲存全部船型</button>
@@ -495,6 +508,22 @@ async function loadChangePassword(){
     const rows=await sb("GET","crew_settings",{query:"?select=value&key=eq.change_password"});
     if(rows && rows[0]) RUNTIME_CHANGE_PASSWORD=rows[0].value;
   }catch(e){ console.warn("讀取異動密碼設定失敗，暫用預設值",e); }
+}
+
+/* ── 船名顯示方式：代碼／中文船名／英文船名，可在「資料管理」切換 ──
+   只影響「畫面上顯示什麼字」，不影響資料比對用的 ship.name（內部識別仍用中文全名）。 */
+let SHIP_DISPLAY_MODE="name";
+async function loadShipDisplayMode(){
+  try{
+    const rows=await sb("GET","crew_settings",{query:"?select=value&key=eq.ship_display_mode"});
+    if(rows && rows[0]) SHIP_DISPLAY_MODE=rows[0].value;
+  }catch(e){ console.warn("讀取船名顯示設定失敗，暫用預設值",e); }
+}
+function shipLabel(ship){
+  if(!ship) return "";
+  if(SHIP_DISPLAY_MODE==="code") return ship.code || ship.name;
+  if(SHIP_DISPLAY_MODE==="name_en") return ship.name_en || ship.name;
+  return ship.name;
 }
 async function changeRuntimePassword(){
   const master=prompt("修改異動密碼需要先輸入管理密碼：");
@@ -646,6 +675,7 @@ async function loadAll(){
     document.getElementById("cloudState").textContent="☁ 已連線";
     renderStats();
     loadChangePassword();
+    loadShipDisplayMode();
   }catch(e){
     console.error(e);
     document.getElementById("cloudState").textContent="☁ 連線失敗";
@@ -1254,7 +1284,7 @@ function renderChangeTab(){
     return;
   }
   if(!changeState.shipId || !State.ships.some(s=>s.id===changeState.shipId)) changeState.shipId=State.ships[0].id;
-  sel.innerHTML = sortShipsByName(State.ships).map(s=>`<option value="${s.id}" ${s.id===changeState.shipId?"selected":""}>${esc(s.name)}</option>`).join("");
+  sel.innerHTML = sortShipsByName(State.ships).map(s=>`<option value="${s.id}" ${s.id===changeState.shipId?"selected":""}>${esc(shipLabel(s))}</option>`).join("");
   const ship=State.ships.find(s=>s.id===changeState.shipId);
   document.getElementById("changeShipCargo").textContent = "本船船型：" + (ship.cargo_types||[]).map(c=>TYPE_CN[c]).join("＋");
   renderPostboard(ship);
@@ -1295,7 +1325,7 @@ function renderChangeCard(ship){
 
   document.getElementById("changeCardHost").innerHTML = `
   <div class="changecard">
-    <div style="font-size:15px;font-weight:800;margin-bottom:14px">${esc(ship.name)} · ${esc(po.post_label)} 異動單</div>
+    <div style="font-size:15px;font-weight:800;margin-bottom:14px">${esc(shipLabel(ship))} · ${esc(po.post_label)} 異動單</div>
     <div class="changegrid">
       <div class="changebox">
         <div class="hd">下船 SIGN-OFF</div>
@@ -1326,7 +1356,7 @@ function renderChangeCard(ship){
   </div>`;
   document.getElementById("changeNewPerson").addEventListener("change", e=>{
     const hint=document.getElementById("changeNewHint");
-    if(e.target.value) hint.textContent = `將以 ${po.rank} 職級、${ship.name}、${disp(document.getElementById("changeDate").value)} 新增一筆在船中航次。`;
+    if(e.target.value) hint.textContent = `將以 ${po.rank} 職級、${shipLabel(ship)}、${disp(document.getElementById("changeDate").value)} 新增一筆在船中航次。`;
     else hint.textContent="";
   });
 }
@@ -1358,7 +1388,7 @@ async function applyChange(postId){
       if(already){ notify(`${np.name} 目前仍在 ${already.ship_name} 船上（${disp(already.sign_on)} 上船）——請先辦理其下船`, "err"); return; }
       await sb("POST","crew_voyages",{body:[{person_id:newPersonId, rank:po.rank, ship_name:ship.name, sign_on:date, sign_off:null, cargo_types: ship.cargo_types||[]}]});
       await sb("PATCH","crew_persons",{query:`?id=eq.${newPersonId}`, body:{rank_now:po.rank}});
-      acts.push(`${np.name} 上船（${ship.name} ${po.post_label}，${disp(date)}）`);
+      acts.push(`${np.name} 上船（${shipLabel(ship)} ${po.post_label}，${disp(date)}）`);
     }
     await sb("PATCH","crew_ship_posts",{query:`?id=eq.${postId}`, body:{person_id: newPersonId||null}});
     await loadAll();
@@ -1368,7 +1398,7 @@ async function applyChange(postId){
     const logHost=document.getElementById("changeLogHost");
     logHost.style.display="";
     document.getElementById("changeLog").insertAdjacentHTML("afterbegin", `<li><span class="mono" style="font-size:11.5px">${new Date().toLocaleTimeString()}</span>　${acts.join("；")}</li>`);
-    logAction("異動", `${operator}：${ship.name} ${po.post_label} — ${acts.join("；")}`);
+    logAction("異動", `${operator}：${shipLabel(ship)} ${po.post_label} — ${acts.join("；")}`);
     notify("異動完成，Crew Matrix 已同步更新");
   }catch(e){ notify("異動失敗："+e.message, "err"); }
 }
@@ -1401,7 +1431,7 @@ function renderMatrixTab(){
     return;
   }
   if(!matrixState.shipId || !State.ships.some(s=>s.id===matrixState.shipId)) matrixState.shipId=State.ships[0].id;
-  sel.innerHTML = sortShipsByName(State.ships).map(s=>`<option value="${s.id}" ${s.id===matrixState.shipId?"selected":""}>${esc(s.name)}</option>`).join("");
+  sel.innerHTML = sortShipsByName(State.ships).map(s=>`<option value="${s.id}" ${s.id===matrixState.shipId?"selected":""}>${esc(shipLabel(s))}</option>`).join("");
   renderMatrixTable();
   if(matrixState.configOpen) renderShipConfig(); else document.getElementById("shipConfigHost").innerHTML="";
 }
@@ -1537,7 +1567,7 @@ document.getElementById("btnExportMatrix").addEventListener("click", ()=>{
   if(!ship) return;
   try{
     const cols=computeCols(ship);
-    const aoa=[["Crew Matrix"],["Ship Name:", ship.name, "", "", "Print date:", disp(todayISO())],[],
+    const aoa=[["Crew Matrix"],["Ship Name:", shipLabel(ship), "", "", "Print date:", disp(todayISO())],[],
       ["Qualification of Officers", ...cols.map(c=>c.post_label)],
       ...MATRIX_ROWS.map(k=> [k, ...cols.map(c=> c.vals? (typeof c.vals[k]==="number"? +c.vals[k].toFixed(1) : c.vals[k]) : "")])];
     const ws=XLSX.utils.aoa_to_sheet(aoa);
@@ -1547,7 +1577,7 @@ document.getElementById("btnExportMatrix").addEventListener("click", ()=>{
     const oc=[["職位／Rank at present", ...cols.map(c=>c.post_label)], ["姓名／Name", ...cols.map(c=> c.vals? c.vals["Name"] : "")],
       ...OCIMF_FIELDS.map(([label,fn])=> [label, ...cols.map(c=> c.vals? ocimfVal(c,fn) : "")])];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(oc), "OCIMF貼上用");
-    XLSX.writeFile(wb, `CrewMatrix_${ship.name}_${todayISO().replaceAll("-","")}.xlsx`);
+    XLSX.writeFile(wb, `CrewMatrix_${shipLabel(ship)}_${todayISO().replaceAll("-","")}.xlsx`);
   }catch(e){ notify("匯出失敗："+e.message, "err"); }
 });
 
@@ -1585,7 +1615,7 @@ document.getElementById("btnExportShipCheck").addEventListener("click", ()=>{
   try{
     const cols=computeCols(ship);
     const wb=XLSX.utils.book_new();
-    const aoa=[["Crew Matrix"],["Ship Name:", ship.name, "", "", "Print date:", disp(todayISO())],[],
+    const aoa=[["Crew Matrix"],["Ship Name:", shipLabel(ship), "", "", "Print date:", disp(todayISO())],[],
       ["Qualification of Officers", ...cols.map(c=>c.post_label)],
       ...MATRIX_ROWS.map(k=> [k, ...cols.map(c=> c.vals? (typeof c.vals[k]==="number"? +c.vals[k].toFixed(1) : c.vals[k]) : "")])];
     const ws=XLSX.utils.aoa_to_sheet(aoa);
@@ -1603,8 +1633,8 @@ document.getElementById("btnExportShipCheck").addEventListener("click", ()=>{
       ws2["!cols"]=[{wch:6},{wch:8},{wch:6},{wch:16},{wch:2},{wch:12},{wch:12},{wch:7},{wch:5},{wch:6},{wch:5},{wch:5},{wch:5}];
       XLSX.utils.book_append_sheet(wb, ws2, sheetName);
     });
-    XLSX.writeFile(wb, `${ship.name}_船上核對用_${todayISO().replaceAll("-","")}.xlsx`);
-    logAction("匯出船上核對用檔案", `${ship.name}（${cols.length-noPerson} 人有明細，${noPerson} 個職位缺配未列出）`);
+    XLSX.writeFile(wb, `${shipLabel(ship)}_船上核對用_${todayISO().replaceAll("-","")}.xlsx`);
+    logAction("匯出船上核對用檔案", `${shipLabel(ship)}（${cols.length-noPerson} 人有明細，${noPerson} 個職位缺配未列出）`);
     notify(`已匯出，共 ${cols.length-noPerson} 位船員的完整資歷${noPerson? `，${noPerson} 個職位目前缺配未列出`:""}`);
   }catch(e){ notify("匯出失敗："+e.message, "err"); }
 });
@@ -1616,10 +1646,12 @@ function renderShipConfig(){
   document.getElementById("shipConfigHost").innerHTML = `
   <div class="panelbox" style="margin-bottom:16px">
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
-      <label class="field">船名<input type="text" id="cfgShipName" value="${esc(ship.name)}"></label>
+      <label class="field">船名（中文，內部識別用）<input type="text" id="cfgShipName" value="${esc(ship.name)}"></label>
+      <label class="field">代碼<input type="text" id="cfgShipCode" value="${esc(ship.code||"")}" style="width:80px"></label>
+      <label class="field">英文船名<input type="text" id="cfgShipNameEn" value="${esc(ship.name_en||"")}" style="width:180px"></label>
       <label class="field">本船船型<span class="tag blue" style="margin-top:4px">${(ship.cargo_types||[]).map(t=>TYPE_CN[t]).join("＋")||"（未設定）"}</span></label>
-      <span class="hint">船型請到「🔐 資料管理」→「船舶船型設定」統一調整，這裡只能改船名。</span>
-      <button class="btn sm" style="margin-left:auto" onclick="saveShipMeta('${ship.id}')">💾 儲存船名</button>
+      <span class="hint">船型請到「🔐 資料管理」→「船舶船型設定」統一調整。畫面上實際顯示中文/代碼/英文，在「資料管理」→「船名顯示方式」設定。</span>
+      <button class="btn sm" style="margin-left:auto" onclick="saveShipMeta('${ship.id}')">💾 儲存</button>
       <button class="btn sm danger" onclick="deleteShip('${ship.id}')">🗑 刪除此船</button>
     </div>
     <table class="tbl">
@@ -1649,11 +1681,13 @@ function renderShipConfig(){
 }
 async function saveShipMeta(shipId){
   const name=document.getElementById("cfgShipName").value.trim();
+  const code=document.getElementById("cfgShipCode").value.trim();
+  const name_en=document.getElementById("cfgShipNameEn").value.trim();
   if(!name){ notify("船名不可空白","err"); return; }
   try{
-    await sb("PATCH","crew_ships",{query:`?id=eq.${shipId}`, body:{name}});
+    await sb("PATCH","crew_ships",{query:`?id=eq.${shipId}`, body:{name, code: code||null, name_en: name_en||null}});
     await loadAll(); renderMatrixTab();
-    notify("已儲存船名");
+    notify("已儲存");
   }catch(e){ notify("儲存失敗："+e.message,"err"); }
 }
 async function savePostRows(shipId){
@@ -1761,6 +1795,7 @@ async function renderAdminTab(){
     `船員 ${State.persons.size} 人（在船 ${[...State.persons.values()].filter(p=>p.voyages.some(v=>!v.sign_off)).length} 人）・船舶 ${State.ships.length} 艘・今日 ${disp(todayISO())}`;
   renderAliasTable();
   renderCargoTypeTable();
+  document.querySelectorAll("#shipDisplaySeg button").forEach(b=> b.classList.toggle("on", b.dataset.v===SHIP_DISPLAY_MODE));
   const body=document.getElementById("adminLogBody");
   body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px">載入中…</td></tr>`;
   try{
@@ -1841,11 +1876,26 @@ function renderCargoTypeTable(){
   const ships=sortShipsByName(State.ships);
   body.innerHTML = ships.length
     ? ships.map(s=>`<tr data-ship="${s.id}">
-        <td><b>${esc(s.name)}</b></td>
+        <td><b>${esc(shipLabel(s))}</b></td>
         ${["Chem","Oil/Chem","Oil","Gas"].map(t=>`<td style="text-align:center"><input type="checkbox" class="cargo-chk" data-ship="${s.id}" value="${t}" ${(s.cargo_types||[]).includes(t)?"checked":""}></td>`).join("")}
       </tr>`).join("")
     : `<tr><td colspan="5" class="hint" style="text-align:center;padding:14px">目前沒有船舶資料</td></tr>`;
 }
+document.getElementById("shipDisplaySeg").addEventListener("click", async e=>{
+  const btn=e.target.closest("button"); if(!btn) return;
+  const mode=btn.dataset.v;
+  if(mode===SHIP_DISPLAY_MODE) return;
+  try{
+    await sb("POST","crew_settings",{query:"?on_conflict=key", body:[{key:"ship_display_mode", value:mode}], prefer:"resolution=merge-duplicates,return=minimal"});
+    SHIP_DISPLAY_MODE=mode;
+    document.querySelectorAll("#shipDisplaySeg button").forEach(b=> b.classList.toggle("on", b.dataset.v===mode));
+    renderCargoTypeTable();
+    if(matrixState.shipId){ renderMatrixTab(); }
+    if(changeState.shipId){ renderChangeTab(); }
+    notify("已更新船名顯示方式");
+    logAction("修改船名顯示方式", mode==="code"?"代碼":mode==="name_en"?"英文船名":"中文船名");
+  }catch(e){ notify("儲存失敗："+e.message,"err"); }
+});
 document.getElementById("btnSaveCargoTypes").addEventListener("click", async ()=>{
   try{
     let changed=0;
