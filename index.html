@@ -198,6 +198,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
             <span class="hint">支援 .xls / .xlsx，格式為「海上資歷 Service experience」表。同名船員將以新檔覆蓋既有資料。</span>
           </div>
           <button class="btn dark" id="btnPickFile">選擇檔案</button>
+          <button class="btn sm" id="btnDownloadTemplate">📄 下載空白範本</button>
           <input type="file" id="fileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
         </div>
         <div id="importFailBox" style="display:none;margin-bottom:16px"></div>
@@ -402,6 +403,19 @@ table.matrix tr.yellow td{background:var(--yellow)}
           <datalist id="shipNameList"></datalist>
           <button class="btn sm" id="btnAddAlias">＋ 新增對應</button>
           <button class="btn sm danger" style="margin-left:auto" id="btnReapplyAliases">🔄 用目前的對應表，修正資料庫裡既有的航次船名</button>
+        </div>
+      </div>
+
+      <div class="panelbox" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <b style="font-size:15px">🚢 船舶啟用管理</b>
+          <span class="hint">公司船隊完整清單（含散裝輪等）。勾選「啟用」才會出現在異動作業／Crew Matrix 的船舶清單裡，之後 RightShip 需要哪艘就啟用哪艘。</span>
+        </div>
+        <div class="tblwrap" style="max-height:320px">
+          <table class="tbl" id="registryTable">
+            <thead><tr><th style="width:70px">代碼</th><th>中文船名</th><th>英文船名</th><th style="width:110px">船型分類</th><th style="width:90px">狀態</th></tr></thead>
+            <tbody id="registryBody"></tbody>
+          </table>
         </div>
       </div>
 
@@ -616,7 +630,7 @@ function toISO(v){
 }
 
 /* ── 全域狀態 ── */
-const State={ persons:new Map(), ships:[], shipAliases:new Map() };
+const State={ persons:new Map(), ships:[], shipAliases:new Map(), shipRegistry:[] };
 let aliasRawByKey=new Map();
 /* 船名統一用這個排序：中文筆畫順序＋數字自然排序（27,28...36 不會被拆成字元逐一比較），
    順序固定不會因為新增/選擇而跳動。找不到 zh stroke collator 的環境會退回一般排序。 */
@@ -655,12 +669,13 @@ function notify(msg, tone="ok"){
 async function loadAll(){
   document.getElementById("cloudState").textContent="☁ 載入中…";
   try{
-    const [persons, voyages, ships, posts, aliases] = await Promise.all([
+    const [persons, voyages, ships, posts, aliases, registry] = await Promise.all([
       sb("GET","crew_persons",{query:"?select=*"}),
       sb("GET","crew_voyages",{query:"?select=*"}),
       sb("GET","crew_ships",{query:"?select=*"}),
       sb("GET","crew_ship_posts",{query:"?select=*&order=sort_order"}),
       sb("GET","crew_ship_aliases",{query:"?select=*"}).catch(()=>[]),
+      sb("GET","crew_ship_registry",{query:"?select=*&order=code"}).catch(()=>[]),
     ]);
     State.persons=new Map();
     for(const p of persons) State.persons.set(p.id, {...p, voyages:[]});
@@ -672,6 +687,7 @@ async function loadAll(){
     State.ships = ships.map(s=> ({...s, posts: posts.filter(po=>po.ship_id===s.id)}));
     State.shipAliases = new Map((aliases||[]).map(a=>[a.norm_key, a.canonical]));
     aliasRawByKey = new Map((aliases||[]).map(a=>[a.norm_key, a.alias]));
+    State.shipRegistry = registry||[];
     document.getElementById("cloudState").textContent="☁ 已連線";
     renderStats();
     loadChangePassword();
@@ -851,7 +867,18 @@ const TAB_META={
   guide:["操作流程","給所有人參考的完整使用說明"],
   admin:["資料管理","操作紀錄、備份"],
 };
+const ADMIN_TAB_GUARD_KEY="crew_admin_tab_guard_date";
+function requireAdminTabAuth(){
+  const today=todayISO();
+  if(localStorage.getItem(ADMIN_TAB_GUARD_KEY)===today) return true;
+  const pw=prompt("進入「資料管理」需要輸入管理密碼：");
+  if(pw===null) return false;
+  if(pw!==MASTER_PASSWORD){ notify("密碼錯誤","err"); return false; }
+  localStorage.setItem(ADMIN_TAB_GUARD_KEY, today);
+  return true;
+}
 function showTab(id){
+  if(id==="admin" && !requireAdminTabAuth()) return;
   document.querySelectorAll(".tab-panel").forEach(el=> el.hidden = el.id!=="tab-"+id);
   document.querySelectorAll(".nav-item[data-tab]").forEach(el=> el.classList.toggle("active", el.dataset.tab===id));
   document.getElementById("pageTitle").textContent=TAB_META[id][0];
@@ -1000,7 +1027,7 @@ async function importFiles(fileList){
   document.getElementById("importFailBox").style.display="none";
   document.getElementById("importUnmappedBox").style.display="none";
   notify(`匯入中…（0/${files.length}）`);
-  let ok=0, fail=[], allUnmapped=new Set();
+  let ok=0, fail=[], allUnmapped=new Set(), renames=[];
   for(let i=0;i<files.length;i++){
     const f=files[i];
     try{
@@ -1009,16 +1036,17 @@ async function importFiles(fileList){
       const ws=wb.Sheets[wb.SheetNames[0]];
       const {person, voyages}=parsePersonSheet(ws, f.name.replace(/\.(xlsx?|xlsm)$/i,""));
       if(!person.name) throw new Error("讀不到姓名 (D2)");
-      const unmapped=await upsertPerson(person, voyages);
+      const {unmapped, renamed}=await upsertPerson(person, voyages);
       unmapped.forEach(n=>allUnmapped.add(n));
+      if(renamed) renames.push(`${f.name} → ${renamed}`);
       ok++;
     }catch(e){ fail.push({file:f.name, msg:e.message}); }
     notify(`匯入中…（${i+1}/${files.length}）`);
   }
   await loadAll();
   renderRoster();
-  notify(`匯入完成：成功 ${ok} 人${fail.length? `，失敗 ${fail.length} 個檔案`:""}`, fail.length?"err":"ok");
-  if(ok>0) logAction("匯入個人資歷", `匯入 ${ok} 人${fail.length?`，失敗 ${fail.length} 個檔案`:""}`);
+  notify(`匯入完成：成功 ${ok} 人${fail.length? `，失敗 ${fail.length} 個檔案`:""}${renames.length?`，${renames.length} 人因同名疑似不同人已自動改名`:""}`, fail.length?"err":"ok");
+  if(ok>0) logAction("匯入個人資歷", `匯入 ${ok} 人${fail.length?`，失敗 ${fail.length} 個檔案`:""}${renames.length?`，改名 ${renames.join("、")}`:""}`);
   if(fail.length){
     console.warn("匯入失敗清單：\n"+fail.map(f=>`${f.file}（${f.msg}）`).join("\n"));
     const box=document.getElementById("importFailBox");
@@ -1031,6 +1059,9 @@ async function importFiles(fileList){
       </ul>
       <p class="hint" style="margin-top:8px">如果每個檔案都出現「column ... does not exist」或「relation ... does not exist」這類訊息，代表 Supabase 資料庫少了必要的欄位或資料表，請確認 add_manning_agency.sql／add_audit_log.sql／add_settings.sql 是否都已執行。</p>
     </div>`;
+  }
+  if(renames.length){
+    notify(`提醒：${renames.map(r=>esc(r)).join("；")} 已存成不同的人，記得去船員資料庫確認姓名`, "err");
   }
   if(allUnmapped.size){
     const box=document.getElementById("importUnmappedBox");
@@ -1054,8 +1085,30 @@ async function upsertPerson(person, voyages){
     }
     return {...v, ship_name: norm};
   });
-  // 依姓名比對是否已存在
-  const existing=[...State.persons.values()].find(p=>p.name===person.name);
+  // 依姓名比對是否已存在——但同名不代表同一人，比對英文名/國籍/證書字號，
+  // 明顯衝突（都有填、且不一樣）才會跳出來確認，避免誤蓋掉不同人的資料。
+  let existing=[...State.persons.values()].find(p=>p.name===person.name);
+  let renamed=null;
+  if(existing){
+    const conflicts=[];
+    const fields=[["name_en","英文姓名"],["nationality","國籍"],["coc","證書種類"]];
+    for(const [k,label] of fields){
+      if(existing[k] && person[k] && normKey(existing[k])!==normKey(person[k])) conflicts.push(`${label}：既有「${existing[k]}」／匯入「${person[k]}」`);
+    }
+    if(conflicts.length){
+      const proceed=confirm(
+        `資料庫裡已經有一位「${person.name}」，但下列資料不一致，看起來可能是不同人：\n\n${conflicts.join("\n")}\n\n`+
+        `按「確定」＝當作同一人，用這份新資料覆蓋更新\n按「取消」＝當作不同的人，另外建一筆（自動加註記區分）`
+      );
+      if(!proceed){
+        let n=2, newName=`${person.name}(${n})`;
+        while([...State.persons.values()].some(p=>p.name===newName)){ n++; newName=`${person.name}(${n})`; }
+        person={...person, name:newName};
+        renamed=newName;
+        existing=null;
+      }
+    }
+  }
   let personId;
   if(existing){
     await sb("PATCH","crew_persons",{query:`?id=eq.${existing.id}`, body:person});
@@ -1068,7 +1121,7 @@ async function upsertPerson(person, voyages){
   if(voyages.length){
     await sb("POST","crew_voyages",{body: voyages.map(v=>({...v, person_id: personId}))});
   }
-  return unmapped;
+  return {unmapped, renamed};
 }
 
 document.getElementById("btnAddPerson").addEventListener("click", async ()=>{
@@ -1581,6 +1634,34 @@ document.getElementById("btnExportMatrix").addEventListener("click", ()=>{
   }catch(e){ notify("匯出失敗："+e.message, "err"); }
 });
 
+/* ── 空白個人資歷範本：給還沒有資料的新船員填寫，填完可直接用「匯入個人資歷表」匯入 ──
+   儲存格位置跟 parsePersonSheet() 讀取的位置完全對齊，不要調整任何一格的位置/合併，
+   否則填完之後系統會讀不到。 */
+function buildBlankPersonTemplate(){
+  const aoa=[];
+  const set=(r,c,v)=>{ while(aoa.length<r) aoa.push([]); while(aoa[r-1].length<c) aoa[r-1].push(""); aoa[r-1][c-1]=v; };
+  set(1,1,"海上資歷　(Service experience)　※填寫說明：只需要填 D、F、H、K 欄（藍字提示旁邊的空格），其餘文字是欄位說明，不要更動位置");
+  set(2,1,"姓名："); set(2,5,"勞務公司："); set(2,7,"英語能力"); set(2,9,"進入公司日期：");
+  set(3,1,"Name:"); set(3,5,"Manning agency:"); set(3,7,"English proficiency"); set(3,9,"Company join date:");
+  set(4,1,"現職："); set(4,5,"國籍"); set(4,9,"Tank船證書（填 Oil/Chem 等）");
+  set(5,1,"Rank at present:"); set(5,5,"Nationality"); set(5,9,"Tanker certification");
+  set(6,1,"證書種類"); set(6,5,"發證國"); set(6,7,"特別證書"); set(6,9,"電台證書");
+  set(7,1,"Certificate of Competency"); set(7,5,"Issuing Country"); set(7,7,"SQ for current cargo（Para 1 or 2）"); set(7,8,""); set(7,9,"Radio qualification（例：GOC）");
+  set(8,1,"※※※只填寫空白欄位，請勿更改任何格式／欄位位置※※※");
+  set(9,1,"項次"); set(9,2,"職位"); set(9,4,"船名"); set(9,6,"上船日期"); set(9,7,"下船日期"); set(9,9,"船型 Vessel type（打 V）");
+  set(10,1,"No."); set(10,2,"Rank"); set(10,3,""); set(10,4,"Ship name"); set(10,6,"Date of Sign On"); set(10,7,"Date of Sign Off"); set(10,8,"Days");
+  set(10,9,"化"); set(10,10,"油/化"); set(10,11,"油"); set(10,12,"氣體"); set(10,13,"其他");
+  set(11,9,"Chem"); set(11,10,"Oil/Chem"); set(11,11,"Oil"); set(11,12,"Gas"); set(11,13,"Other");
+  for(let i=0;i<15;i++) set(12+i,1,i+1);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:6},{wch:10},{wch:8},{wch:16},{wch:3},{wch:13},{wch:13},{wch:7},{wch:6},{wch:8},{wch:6},{wch:6},{wch:6}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "個人資歷");
+  XLSX.writeFile(wb, "個人資歷_空白範本.xlsx");
+  logAction("下載空白範本", "個人資歷範本");
+}
+document.getElementById("btnDownloadTemplate").addEventListener("click", buildBlankPersonTemplate);
+
 /* ── 匯出「船上核對用」檔案：Crew Matrix 總表 + 每位在船人員完整海上資歷分頁 ──
    分頁格式比照原本「海上資歷 (Service experience)」個人表，方便船上比對紙本。
    ※ 用的是免費版 SheetJS，寫不出顏色/合併儲存格這類樣式，
@@ -1795,6 +1876,7 @@ async function renderAdminTab(){
     `船員 ${State.persons.size} 人（在船 ${[...State.persons.values()].filter(p=>p.voyages.some(v=>!v.sign_off)).length} 人）・船舶 ${State.ships.length} 艘・今日 ${disp(todayISO())}`;
   renderAliasTable();
   renderCargoTypeTable();
+  renderRegistryTable();
   document.querySelectorAll("#shipDisplaySeg button").forEach(b=> b.classList.toggle("on", b.dataset.v===SHIP_DISPLAY_MODE));
   const body=document.getElementById("adminLogBody");
   body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px">載入中…</td></tr>`;
@@ -1896,6 +1978,41 @@ document.getElementById("shipDisplaySeg").addEventListener("click", async e=>{
     logAction("修改船名顯示方式", mode==="code"?"代碼":mode==="name_en"?"英文船名":"中文船名");
   }catch(e){ notify("儲存失敗："+e.message,"err"); }
 });
+/* ── 船舶啟用管理：完整船隊清單，勾選啟用才會進入 Crew Matrix 使用 ── */
+function renderRegistryTable(){
+  const body=document.getElementById("registryBody");
+  if(!body) return;
+  if(!State.shipRegistry.length){
+    body.innerHTML=`<tr><td colspan="5" class="hint" style="text-align:center;padding:14px">尚未匯入船舶登錄庫（需先執行 add_ship_full_registry.sql）</td></tr>`;
+    return;
+  }
+  const activeCodes=new Set(State.ships.map(s=>s.code).filter(Boolean));
+  body.innerHTML = State.shipRegistry.map(r=>{
+    const active=activeCodes.has(r.code);
+    return `<tr>
+      <td class="mono">${esc(r.code)}</td>
+      <td>${esc(r.name)}</td>
+      <td>${esc(r.name_en||"")}</td>
+      <td>${esc(r.ship_type||"")}</td>
+      <td>${active? '<span class="tag green">已啟用</span>' : `<button class="btn sm" onclick="activateShip('${esc(r.code)}')">＋ 啟用</button>`}</td>
+    </tr>`;
+  }).join("");
+}
+async function activateShip(code){
+  const reg=State.shipRegistry.find(r=>r.code===code);
+  if(!reg) return;
+  if(State.ships.some(s=>s.code===code)){ notify("這艘船已經啟用了","err"); return; }
+  try{
+    const created=await sb("POST","crew_ships",{body:{name:reg.name, name_en:reg.name_en||null, code:reg.code, cargo_types:[]}});
+    const shipId=created[0].id;
+    await sb("POST","crew_ship_posts",{body: DEFAULT_POSTS.map((p,i)=>({...p, ship_id:shipId, sort_order:i}))});
+    await loadAll();
+    renderRegistryTable();
+    renderCargoTypeTable();
+    notify(`已啟用「${reg.name}」，含 9 個預設職位。船型還沒設定，記得去「船舶船型設定」補上`);
+    logAction("啟用船舶", `${reg.code} ${reg.name}`);
+  }catch(e){ notify("啟用失敗："+e.message,"err"); }
+}
 document.getElementById("btnSaveCargoTypes").addEventListener("click", async ()=>{
   try{
     let changed=0;
