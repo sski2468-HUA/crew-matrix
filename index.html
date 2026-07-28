@@ -98,6 +98,7 @@ table.tbl tbody tr:hover>td{background:#f3f8fa}
 .tag.green{background:var(--teal-l);color:#2e6b4b}
 .tag.red{background:var(--bad-l);color:var(--bad)}
 .tag.grey{background:#eef2f4;color:var(--ink-2)}
+.tag.blue{background:var(--blueBg,#e4edf5);color:var(--navy)}
 
 /* ───── 上傳拖放區 ───── */
 .dropzone{border:2px dashed var(--line-2);border-radius:8px;background:var(--card);padding:22px 24px;display:flex;align-items:center;gap:16px;transition:all .15s;cursor:pointer}
@@ -404,6 +405,20 @@ table.matrix tr.yellow td{background:var(--yellow)}
         </div>
       </div>
 
+      <div class="panelbox" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <b style="font-size:15px">🛢 船舶船型設定</b>
+          <span class="hint">影響 Crew Matrix「Years on this type of tanker」的計算範圍，一次改完全部船，船舶頁面不再單獨調整</span>
+          <button class="btn sm primary" style="margin-left:auto" id="btnSaveCargoTypes">💾 儲存全部船型</button>
+        </div>
+        <div class="tblwrap">
+          <table class="tbl" id="cargoTypeTable">
+            <thead><tr><th>船名</th><th>化 Chem</th><th>油/化 Oil/Chem</th><th>油 Oil</th><th>氣體 Gas</th></tr></thead>
+            <tbody id="cargoTypeBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="panelbox">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
           <b style="font-size:15px">操作紀錄</b>
@@ -574,6 +589,13 @@ function toISO(v){
 /* ── 全域狀態 ── */
 const State={ persons:new Map(), ships:[], shipAliases:new Map() };
 let aliasRawByKey=new Map();
+/* 船名統一用這個排序：中文筆畫順序＋數字自然排序（27,28...36 不會被拆成字元逐一比較），
+   順序固定不會因為新增/選擇而跳動。找不到 zh stroke collator 的環境會退回一般排序。 */
+let _zhCollator;
+try{ _zhCollator=new Intl.Collator("zh-Hant-u-co-stroke",{numeric:true}); }
+catch(e){ _zhCollator={compare:(a,b)=>String(a).localeCompare(String(b),"zh-Hant",{numeric:true})}; }
+function sortShipsByName(list){ return [...list].sort((a,b)=>_zhCollator.compare(a.name,b.name)); }
+function sortNamesZh(list){ return [...list].sort((a,b)=>_zhCollator.compare(a,b)); }
 /* ── 船名統一：normKey 相同視為同一艘船 ──
    1) 先比對現有船舶清單（crew_ships.name），大小寫/前後空白不同也算同一艘 → 自動修正成船舶登記的正式名稱
    2) 再查 crew_ship_aliases 對應表（例如中文對英文）
@@ -873,7 +895,7 @@ function populateAdvFilterOptions(){
   }
   const fill=(id,set,cur)=>{
     const el=document.getElementById(id);
-    const opts=[...set].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+    const opts=sortNamesZh([...set]);
     el.innerHTML=`<option value="">（全部）</option>`+opts.map(v=>`<option value="${esc(v)}" ${v===cur?"selected":""}>${esc(v)}</option>`).join("");
   };
   fill("filterRank", ranks, rosterFilter.rank);
@@ -1232,7 +1254,7 @@ function renderChangeTab(){
     return;
   }
   if(!changeState.shipId || !State.ships.some(s=>s.id===changeState.shipId)) changeState.shipId=State.ships[0].id;
-  sel.innerHTML = State.ships.map(s=>`<option value="${s.id}" ${s.id===changeState.shipId?"selected":""}>${esc(s.name)}</option>`).join("");
+  sel.innerHTML = sortShipsByName(State.ships).map(s=>`<option value="${s.id}" ${s.id===changeState.shipId?"selected":""}>${esc(s.name)}</option>`).join("");
   const ship=State.ships.find(s=>s.id===changeState.shipId);
   document.getElementById("changeShipCargo").textContent = "本船船型：" + (ship.cargo_types||[]).map(c=>TYPE_CN[c]).join("＋");
   renderPostboard(ship);
@@ -1379,7 +1401,7 @@ function renderMatrixTab(){
     return;
   }
   if(!matrixState.shipId || !State.ships.some(s=>s.id===matrixState.shipId)) matrixState.shipId=State.ships[0].id;
-  sel.innerHTML = State.ships.map(s=>`<option value="${s.id}" ${s.id===matrixState.shipId?"selected":""}>${esc(s.name)}</option>`).join("");
+  sel.innerHTML = sortShipsByName(State.ships).map(s=>`<option value="${s.id}" ${s.id===matrixState.shipId?"selected":""}>${esc(s.name)}</option>`).join("");
   renderMatrixTable();
   if(matrixState.configOpen) renderShipConfig(); else document.getElementById("shipConfigHost").innerHTML="";
 }
@@ -1595,12 +1617,9 @@ function renderShipConfig(){
   <div class="panelbox" style="margin-bottom:16px">
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
       <label class="field">船名<input type="text" id="cfgShipName" value="${esc(ship.name)}"></label>
-      <label class="field">本船船型
-        <div style="display:flex;gap:8px;padding-top:4px">
-          ${TYPES.slice(0,4).map(t=>`<label style="font-weight:500;font-size:13px;display:flex;gap:4px;align-items:center"><input type="checkbox" class="cfg-cargo" value="${t}" ${(ship.cargo_types||[]).includes(t)?"checked":""}>${TYPE_CN[t]}</label>`).join("")}
-        </div>
-      </label>
-      <button class="btn sm" style="margin-left:auto" onclick="saveShipMeta('${ship.id}')">💾 儲存船名/船型</button>
+      <label class="field">本船船型<span class="tag blue" style="margin-top:4px">${(ship.cargo_types||[]).map(t=>TYPE_CN[t]).join("＋")||"（未設定）"}</span></label>
+      <span class="hint">船型請到「🔐 資料管理」→「船舶船型設定」統一調整，這裡只能改船名。</span>
+      <button class="btn sm" style="margin-left:auto" onclick="saveShipMeta('${ship.id}')">💾 儲存船名</button>
       <button class="btn sm danger" onclick="deleteShip('${ship.id}')">🗑 刪除此船</button>
     </div>
     <table class="tbl">
@@ -1630,12 +1649,11 @@ function renderShipConfig(){
 }
 async function saveShipMeta(shipId){
   const name=document.getElementById("cfgShipName").value.trim();
-  const cargo=[...document.querySelectorAll(".cfg-cargo:checked")].map(el=>el.value);
   if(!name){ notify("船名不可空白","err"); return; }
   try{
-    await sb("PATCH","crew_ships",{query:`?id=eq.${shipId}`, body:{name, cargo_types:cargo}});
+    await sb("PATCH","crew_ships",{query:`?id=eq.${shipId}`, body:{name}});
     await loadAll(); renderMatrixTab();
-    notify("已儲存船名/船型");
+    notify("已儲存船名");
   }catch(e){ notify("儲存失敗："+e.message,"err"); }
 }
 async function savePostRows(shipId){
@@ -1742,6 +1760,7 @@ async function renderAdminTab(){
   document.getElementById("adminStats").textContent =
     `船員 ${State.persons.size} 人（在船 ${[...State.persons.values()].filter(p=>p.voyages.some(v=>!v.sign_off)).length} 人）・船舶 ${State.ships.length} 艘・今日 ${disp(todayISO())}`;
   renderAliasTable();
+  renderCargoTypeTable();
   const body=document.getElementById("adminLogBody");
   body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px">載入中…</td></tr>`;
   try{
@@ -1768,7 +1787,7 @@ function renderAliasTable(){
         return `<tr><td>${esc(original)}</td><td>${esc(canon)}</td><td><button class="btn sm danger" onclick="deleteAlias('${esc(k)}')">✕</button></td></tr>`;
       }).join("")
     : `<tr><td colspan="3" class="hint" style="text-align:center;padding:14px">目前沒有設定任何船名對應</td></tr>`;
-  document.getElementById("shipNameList").innerHTML = State.ships.map(s=>`<option value="${esc(s.name)}">`).join("");
+  document.getElementById("shipNameList").innerHTML = sortShipsByName(State.ships).map(s=>`<option value="${esc(s.name)}">`).join("");
 }
 document.getElementById("btnAddAlias").addEventListener("click", async ()=>{
   const from=document.getElementById("aliasNewFrom").value.trim();
@@ -1813,6 +1832,37 @@ document.getElementById("btnReapplyAliases").addEventListener("click", async ()=
     notify(`修正完成，共更新 ${changed} 筆航次的船名`);
     logAction("重新套用船名對應", `${operator}：更新 ${changed} 筆航次`);
   }catch(e){ notify("執行失敗："+e.message,"err"); }
+});
+
+/* ── 船舶船型設定：一次列出所有船統一調整 ── */
+function renderCargoTypeTable(){
+  const body=document.getElementById("cargoTypeBody");
+  if(!body) return;
+  const ships=sortShipsByName(State.ships);
+  body.innerHTML = ships.length
+    ? ships.map(s=>`<tr data-ship="${s.id}">
+        <td><b>${esc(s.name)}</b></td>
+        ${["Chem","Oil/Chem","Oil","Gas"].map(t=>`<td style="text-align:center"><input type="checkbox" class="cargo-chk" data-ship="${s.id}" value="${t}" ${(s.cargo_types||[]).includes(t)?"checked":""}></td>`).join("")}
+      </tr>`).join("")
+    : `<tr><td colspan="5" class="hint" style="text-align:center;padding:14px">目前沒有船舶資料</td></tr>`;
+}
+document.getElementById("btnSaveCargoTypes").addEventListener("click", async ()=>{
+  try{
+    let changed=0;
+    for(const ship of State.ships){
+      const checks=[...document.querySelectorAll(`.cargo-chk[data-ship="${ship.id}"]:checked`)].map(el=>el.value);
+      const before=(ship.cargo_types||[]).slice().sort().join(",");
+      const after=checks.slice().sort().join(",");
+      if(before!==after){
+        await sb("PATCH","crew_ships",{query:`?id=eq.${ship.id}`, body:{cargo_types:checks}, prefer:"return=minimal"});
+        changed++;
+      }
+    }
+    await loadAll();
+    renderCargoTypeTable();
+    notify(`已儲存，共更新 ${changed} 艘船的船型`);
+    if(changed>0) logAction("修改船舶船型", `更新 ${changed} 艘船`);
+  }catch(e){ notify("儲存失敗："+e.message,"err"); }
 });
 document.getElementById("btnAdminBackup").addEventListener("click", exportBackupFile);
 document.getElementById("btnAdminRefreshLog").addEventListener("click", renderAdminTab);
