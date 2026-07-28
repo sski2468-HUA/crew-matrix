@@ -78,6 +78,11 @@ table.tbl tbody tr:hover>td{background:#f3f8fa}
 .segbtn button:last-child{border-right:none}
 .segbtn button.on{background:var(--navy);color:#fff;font-weight:700}
 .segbtn button:hover:not(.on){background:#f3f8fa}
+.combo-drop{position:absolute;z-index:30;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line-2);border-radius:4px;box-shadow:0 6px 18px rgba(0,0,0,.15);max-height:200px;overflow-y:auto;margin-top:2px}
+.combo-item{padding:7px 10px;font-size:12.5px;cursor:pointer}
+.combo-item:hover,.combo-item.hi{background:var(--navy);color:#fff}
+.combo-item.empty{color:var(--ink-3);font-style:italic}
+.combo-empty{padding:10px;font-size:12px;color:var(--ink-3);text-align:center}
 .compliance-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
 .compliance-card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px}
 .compliance-card .hd{font-weight:700;font-size:13.5px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
@@ -194,6 +199,8 @@ table.matrix tr.yellow td{background:var(--yellow)}
           <button class="btn dark" id="btnPickFile">選擇檔案</button>
           <input type="file" id="fileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
         </div>
+        <div id="importFailBox" style="display:none;margin-bottom:16px"></div>
+        <div id="importUnmappedBox" style="display:none;margin-bottom:16px"></div>
 
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
           <input type="text" id="rosterSearch" placeholder="搜尋姓名 / 英文名 / 職級 / 勞務公司" style="width:260px">
@@ -265,6 +272,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
         <input type="file" id="shipFileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
       </div>
       <div id="shipConfigHost"></div>
+      <div id="shipImportFailBox" style="display:none;margin-bottom:14px"></div>
       <div class="matrixwrap"><table class="matrix" id="matrixTable"></table></div>
       <div id="complianceBox" style="margin-top:14px"></div>
       <p class="hint" style="margin-top:10px">黃色列為 SIRE 檢查重點年資。計算規則：Cadet 期間不計入職級年資；在船中航次以「今天」計算天數；「Years on this type of tanker」依船舶配置中設定的船型計算。</p>
@@ -373,6 +381,27 @@ table.matrix tr.yellow td{background:var(--yellow)}
         <b style="font-size:15px">🔑 異動密碼設定</b>
         <p class="hint" style="margin:8px 0">辦理異動、刪除船員／船舶時需要輸入的密碼。修改時需要先輸入管理密碼（只有管理者知道，不會顯示在畫面或資料庫裡）。</p>
         <button class="btn sm danger" id="btnChangePassword">🔧 修改異動密碼（需管理密碼）</button>
+      </div>
+
+      <div class="panelbox" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+          <b style="font-size:15px">🚢 船名統一設定</b>
+          <span class="hint">匯入個人資歷表時，船名會依這裡的對應自動統一（例如「台塑真善輪」↔「FPMC C Jade」，或不同大小寫寫法）</span>
+        </div>
+        <div class="tblwrap" style="max-height:260px">
+          <table class="tbl" id="aliasTable">
+            <thead><tr><th>原始寫法（船員表上填的）</th><th>統一為（正式船名）</th><th style="width:60px"></th></tr></thead>
+            <tbody id="aliasBody"></tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+          <input type="text" id="aliasNewFrom" placeholder="原始寫法，例如 FPMC C JADE" style="width:220px">
+          <span class="hint">→</span>
+          <input type="text" id="aliasNewTo" list="shipNameList" placeholder="統一為，例如 台塑真善輪" style="width:220px">
+          <datalist id="shipNameList"></datalist>
+          <button class="btn sm" id="btnAddAlias">＋ 新增對應</button>
+          <button class="btn sm danger" style="margin-left:auto" id="btnReapplyAliases">🔄 用目前的對應表，修正資料庫裡既有的航次船名</button>
+        </div>
       </div>
 
       <div class="panelbox">
@@ -543,7 +572,22 @@ function toISO(v){
 }
 
 /* ── 全域狀態 ── */
-const State={ persons:new Map(), ships:[] };
+const State={ persons:new Map(), ships:[], shipAliases:new Map() };
+let aliasRawByKey=new Map();
+/* ── 船名統一：normKey 相同視為同一艘船 ──
+   1) 先比對現有船舶清單（crew_ships.name），大小寫/前後空白不同也算同一艘 → 自動修正成船舶登記的正式名稱
+   2) 再查 crew_ship_aliases 對應表（例如中文對英文）
+   3) 都查不到就維持原樣，並在匯入結果裡列出來提醒設定對應 */
+function normKey(s){ return String(s||"").trim().toUpperCase().replace(/\s+/g," "); }
+function normalizeShipName(raw){
+  if(!raw) return raw;
+  const k=normKey(raw);
+  const known=State.ships.find(s=>normKey(s.name)===k);
+  if(known) return known.name;
+  const alias=State.shipAliases.get(k);
+  if(alias) return alias;
+  return raw;
+}
 
 /* ── Toast ── */
 let toastTimer=null;
@@ -560,11 +604,12 @@ function notify(msg, tone="ok"){
 async function loadAll(){
   document.getElementById("cloudState").textContent="☁ 載入中…";
   try{
-    const [persons, voyages, ships, posts] = await Promise.all([
+    const [persons, voyages, ships, posts, aliases] = await Promise.all([
       sb("GET","crew_persons",{query:"?select=*"}),
       sb("GET","crew_voyages",{query:"?select=*"}),
       sb("GET","crew_ships",{query:"?select=*"}),
       sb("GET","crew_ship_posts",{query:"?select=*&order=sort_order"}),
+      sb("GET","crew_ship_aliases",{query:"?select=*"}).catch(()=>[]),
     ]);
     State.persons=new Map();
     for(const p of persons) State.persons.set(p.id, {...p, voyages:[]});
@@ -574,6 +619,8 @@ async function loadAll(){
     }
     for(const p of State.persons.values()) p.voyages.sort((a,b)=> (a.sign_on||"").localeCompare(b.sign_on||""));
     State.ships = ships.map(s=> ({...s, posts: posts.filter(po=>po.ship_id===s.id)}));
+    State.shipAliases = new Map((aliases||[]).map(a=>[a.norm_key, a.canonical]));
+    aliasRawByKey = new Map((aliases||[]).map(a=>[a.norm_key, a.alias]));
     document.getElementById("cloudState").textContent="☁ 已連線";
     renderStats();
     loadChangePassword();
@@ -811,7 +858,7 @@ function renderRoster(){
       <td class="mono">${cur? disp(cur.sign_on) : (last? disp(last.sign_off||last.sign_on) : "—")}</td>
       <td class="mono">${p.voyages.length}</td>
       <td class="mono">${yrs.toFixed(1)}</td>
-      <td><button class="btn sm" onclick="openPersonEdit('${p.id}')">檢視/編輯</button></td>
+      <td style="white-space:nowrap"><button class="btn sm" onclick="openPersonEdit('${p.id}')">檢視/編輯</button> <button class="btn sm" title="匯出這個人的 Crew Matrix" onclick="exportPersonMatrix('${p.id}')">📊 Matrix</button></td>
     </tr>`).join("");
 }
 function populateAdvFilterOptions(){
@@ -898,8 +945,10 @@ dz.addEventListener("drop", e=>{ e.preventDefault(); dz.classList.remove("drag")
 async function importFiles(fileList){
   const files=[...fileList].filter(f=>/\.(xlsx?|xlsm)$/i.test(f.name));
   if(!files.length){ notify("請選擇 .xls / .xlsx 個人資歷檔", "err"); return; }
+  document.getElementById("importFailBox").style.display="none";
+  document.getElementById("importUnmappedBox").style.display="none";
   notify(`匯入中…（0/${files.length}）`);
-  let ok=0, fail=[];
+  let ok=0, fail=[], allUnmapped=new Set();
   for(let i=0;i<files.length;i++){
     const f=files[i];
     try{
@@ -908,19 +957,51 @@ async function importFiles(fileList){
       const ws=wb.Sheets[wb.SheetNames[0]];
       const {person, voyages}=parsePersonSheet(ws, f.name.replace(/\.(xlsx?|xlsm)$/i,""));
       if(!person.name) throw new Error("讀不到姓名 (D2)");
-      await upsertPerson(person, voyages);
+      const unmapped=await upsertPerson(person, voyages);
+      unmapped.forEach(n=>allUnmapped.add(n));
       ok++;
-    }catch(e){ fail.push(`${f.name}（${e.message}）`); }
+    }catch(e){ fail.push({file:f.name, msg:e.message}); }
     notify(`匯入中…（${i+1}/${files.length}）`);
   }
   await loadAll();
   renderRoster();
   notify(`匯入完成：成功 ${ok} 人${fail.length? `，失敗 ${fail.length} 個檔案`:""}`, fail.length?"err":"ok");
   if(ok>0) logAction("匯入個人資歷", `匯入 ${ok} 人${fail.length?`，失敗 ${fail.length} 個檔案`:""}`);
-  if(fail.length) console.warn("匯入失敗清單：\n"+fail.join("\n"));
+  if(fail.length){
+    console.warn("匯入失敗清單：\n"+fail.map(f=>`${f.file}（${f.msg}）`).join("\n"));
+    const box=document.getElementById("importFailBox");
+    box.style.display="";
+    box.innerHTML = `<div class="panelbox" style="border-color:var(--bad)">
+      <b style="color:var(--bad)">⚠ ${fail.length} 個檔案匯入失敗</b>
+      <button class="btn sm" style="float:right" onclick="document.getElementById('importFailBox').style.display='none'">關閉</button>
+      <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.9">
+        ${fail.map(f=>`<li><b>${esc(f.file)}</b>：${esc(f.msg)}</li>`).join("")}
+      </ul>
+      <p class="hint" style="margin-top:8px">如果每個檔案都出現「column ... does not exist」或「relation ... does not exist」這類訊息，代表 Supabase 資料庫少了必要的欄位或資料表，請確認 add_manning_agency.sql／add_audit_log.sql／add_settings.sql 是否都已執行。</p>
+    </div>`;
+  }
+  if(allUnmapped.size){
+    const box=document.getElementById("importUnmappedBox");
+    box.style.display="";
+    box.innerHTML = `<div class="panelbox" style="border-color:var(--warn)">
+      <b style="color:#a97a10">⚠ ${allUnmapped.size} 個船名在資料庫裡找不到對應船舶</b>
+      <button class="btn sm" style="float:right" onclick="document.getElementById('importUnmappedBox').style.display='none'">關閉</button>
+      <p class="hint" style="margin:6px 0">以下船名跟現有船舶清單、船名對應表都對不上，可能是新船、或寫法不一致。去「資料管理」分頁的「船名統一設定」新增對應即可：</p>
+      <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.9">${[...allUnmapped].map(n=>`<li>${esc(n)}</li>`).join("")}</ul>
+    </div>`;
+  }
 }
 
 async function upsertPerson(person, voyages){
+  const unmapped=[];
+  voyages=voyages.map(v=>{
+    const norm=normalizeShipName(v.ship_name);
+    if(norm!==v.ship_name && normKey(norm)!==normKey(v.ship_name)){ /* 已對應成功，不用提醒 */ }
+    else if(v.ship_name && norm===v.ship_name && !State.ships.some(s=>normKey(s.name)===normKey(v.ship_name))){
+      unmapped.push(v.ship_name);
+    }
+    return {...v, ship_name: norm};
+  });
   // 依姓名比對是否已存在
   const existing=[...State.persons.values()].find(p=>p.name===person.name);
   let personId;
@@ -935,6 +1016,7 @@ async function upsertPerson(person, voyages){
   if(voyages.length){
     await sb("POST","crew_voyages",{body: voyages.map(v=>({...v, person_id: personId}))});
   }
+  return unmapped;
 }
 
 document.getElementById("btnAddPerson").addEventListener("click", async ()=>{
@@ -963,6 +1045,37 @@ function exportBackupFile(){
     XLSX.writeFile(wb, `Crew Matrix 資料庫備份_${todayISO().replaceAll("-","")}.xlsx`);
     logAction("匯出備份", `匯出整個資料庫（${State.persons.size} 人、${State.ships.length} 艘船）`);
   }catch(e){ notify("匯出失敗："+e.message, "err"); }
+}
+
+/* ── 單一船員的 Crew Matrix 匯出 ──
+   優先用他目前實際指派到的職位（決定職級與船型範圍）；
+   如果目前沒有指派在任何船上，退而用「現職」欄位判斷職級，船型範圍用全部船型概算。 */
+function exportPersonMatrix(personId){
+  const person=State.persons.get(personId);
+  if(!person){ notify("找不到此船員","err"); return; }
+  let rank=null, shipTypes=["Chem","Oil/Chem","Oil","Gas"], shipName="";
+  for(const ship of State.ships){
+    const po=ship.posts.find(p=>p.person_id===personId);
+    if(po){ rank=po.rank; if(ship.cargo_types&&ship.cargo_types.length) shipTypes=ship.cargo_types; shipName=ship.name; break; }
+  }
+  if(!rank){
+    rank = RANK_ALIAS[(person.rank_now||"").toUpperCase()] || null;
+  }
+  if(!rank){ notify('這個人目前沒有指派職位，且「現職」欄位無法辨識職級（需為 CAPT./C/O/2/O/3/O/C/E/2/E/3/E/4/E 之一），請先在編輯畫面補上現職','err'); return; }
+  try{
+    const vals=matrixColumn(person, rank, shipTypes, todayISO());
+    const wb=XLSX.utils.book_new();
+    const aoa=[["Crew Matrix — 個人匯出"],["姓名：", person.name, "", "職級：", rank, "", "船舶：", shipName||"(目前未指派)", "", "匯出日：", disp(todayISO())],[],
+      ["項目","數值"], ...MATRIX_ROWS.map(k=>[k, typeof vals[k]==="number"? +vals[k].toFixed(1) : (vals[k]||"")])];
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"]=[{wch:36},{wch:22}];
+    XLSX.utils.book_append_sheet(wb, ws, "Crew Matrix");
+    const colObj={rank, vals};
+    const oc=[["欄位","數值"], ...OCIMF_FIELDS.map(([label,fn])=>[label, ocimfVal(colObj,fn)])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(oc), "OCIMF貼上用");
+    XLSX.writeFile(wb, `CrewMatrix_${person.name}_${todayISO().replaceAll("-","")}.xlsx`);
+    logAction("匯出個人 Crew Matrix", `${person.name}（${rank}${shipName?"，"+shipName:""}）`);
+  }catch(e){ notify("匯出失敗："+e.message,"err"); }
 }
 
 /* ── 個人編輯視圖（整頁切換，不用彈出視窗）── */
@@ -1069,7 +1182,7 @@ async function savePersonDrawer(personId){
   if(!person.name){ notify("姓名不可空白","err"); return; }
   const voyages=[...document.querySelectorAll("#voyageBody tr")].map(tr=>{
     const rank=tr.querySelector(".v-rank").value||null;
-    const ship_name=tr.querySelector(".v-ship").value.trim();
+    const ship_name=normalizeShipName(tr.querySelector(".v-ship").value.trim());
     const sign_on=tr.querySelector(".v-on").value||null;
     const offInput=tr.querySelector(".v-off");
     const sign_off = offInput.style.display==="none" ? null : (offInput.value||null);
@@ -1279,6 +1392,7 @@ document.getElementById("shipFileInput").addEventListener("change", e=>{ importS
 async function importShipFiles(fileList){
   const files=[...fileList].filter(f=>/\.(xlsx?|xlsm)$/i.test(f.name));
   if(!files.length){ notify("請選擇 .xls / .xlsx 船舶總表檔","err"); return; }
+  document.getElementById("shipImportFailBox").style.display="none";
   let ok=0, skip=0, fail=[], matched=0, unmatched=0;
   for(const f of files){
     try{
@@ -1301,13 +1415,24 @@ async function importShipFiles(fileList){
       });
       await sb("POST","crew_ship_posts",{body: postRows});
       ok++;
-    }catch(e){ fail.push(`${f.name}（${e.message}）`); }
+    }catch(e){ fail.push({file:f.name, msg:e.message}); }
   }
   await loadAll();
   renderMatrixTab();
   notify(`匯入完成：新增 ${ok} 艘${skip? `，${skip} 艘已存在自動略過`:""}${fail.length? `，${fail.length} 個檔案失敗`:""}——自動配對到 ${matched} 個職位${unmatched? `，${unmatched} 個職位在船員資料庫找不到同名者，需手動指派`:""}。本船船型先預設為 Chem+Oil/Chem，請到「船舶／職位設定」核對修正`, fail.length?"err":"ok");
   if(ok>0) logAction("匯入船舶配置", `新增 ${ok} 艘船，自動配對 ${matched} 個職位`);
-  if(fail.length) console.warn("船舶匯入失敗：\n"+fail.join("\n"));
+  if(fail.length){
+    console.warn("船舶匯入失敗：\n"+fail.map(f=>`${f.file}（${f.msg}）`).join("\n"));
+    const box=document.getElementById("shipImportFailBox");
+    box.style.display="";
+    box.innerHTML = `<div class="panelbox" style="border-color:var(--bad)">
+      <b style="color:var(--bad)">⚠ ${fail.length} 個檔案匯入失敗</b>
+      <button class="btn sm" style="float:right" onclick="document.getElementById('shipImportFailBox').style.display='none'">關閉</button>
+      <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.9">
+        ${fail.map(f=>`<li><b>${esc(f.file)}</b>：${esc(f.msg)}</li>`).join("")}
+      </ul>
+    </div>`;
+  }
 }
 
 function computeCols(ship){
@@ -1339,9 +1464,6 @@ function renderMatrixTable(){
     });
     html += `</tr>`;
   });
-  html += `<tr><td class="label" style="color:var(--ink-3);font-size:11.5px">OCIMF 抄錄</td>`;
-  cols.forEach((c,i)=> html += `<td>${c.vals? `<button class="btn sm" onclick="copyMatrixCol(${i})">複製整欄</button>`:""}</td>`);
-  html += `</tr>`;
   document.getElementById("matrixTable").innerHTML=html;
   window._matrixCols = cols;
   renderComplianceCheck(cols);
@@ -1385,13 +1507,8 @@ function renderComplianceCheck(cols){
     </div>`;
   }).join("") + `</div>`;
 }
-async function copyMatrixCol(i){
-  const c=window._matrixCols[i];
-  if(!c || !c.vals) return;
-  const text = OCIMF_FIELDS.map(([label,fn])=> `${label}\t${ocimfVal(c,fn)}`).join("\n");
-  try{ await navigator.clipboard.writeText(text); notify(`已複製 ${c.post_label}（${c.person_name}）整欄，順序跟 OCIMF 網頁表單一致`); }
-  catch{ notify("複製失敗，瀏覽器不允許剪貼簿存取","err"); }
-}
+
+
 
 document.getElementById("btnExportMatrix").addEventListener("click", ()=>{
   const ship=State.ships.find(s=>s.id===matrixState.shipId);
@@ -1474,7 +1591,6 @@ document.getElementById("btnExportShipCheck").addEventListener("click", ()=>{
 function renderShipConfig(){
   const ship=State.ships.find(s=>s.id===matrixState.shipId);
   if(!ship){ document.getElementById("shipConfigHost").innerHTML=""; return; }
-  const names=[...State.persons.values()].sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
   document.getElementById("shipConfigHost").innerHTML = `
   <div class="panelbox" style="margin-bottom:16px">
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
@@ -1496,10 +1612,12 @@ function renderShipConfig(){
           <td><select class="cfg-rank" data-post="${po.id}">
             ${[...DECK,...ENG].map(r=>`<option value="${r}" ${po.rank===r?"selected":""}>${r} ${RANK_CN[r]}</option>`).join("")}
           </select></td>
-          <td><select class="cfg-person" data-post="${po.id}" style="min-width:140px">
-            <option value="">（留空）</option>
-            ${names.map(n=>`<option value="${n.id}" ${po.person_id===n.id?"selected":""}>${esc(n.name)}</option>`).join("")}
-          </select></td>
+          <td style="position:relative">
+            <input type="text" class="cfg-person-search" data-post="${po.id}" autocomplete="off" placeholder="輸入姓名搜尋…"
+              value="${po.person_id? esc((State.persons.get(po.person_id)||{}).name||"") : ""}" style="min-width:150px">
+            <input type="hidden" class="cfg-person-value" data-post="${po.id}" value="${po.person_id||""}">
+            <div class="combo-drop" data-post="${po.id}" style="display:none"></div>
+          </td>
           <td><button class="btn sm danger" onclick="deletePost('${po.id}')">✕</button></td>
         </tr>`).join("")}
       </tbody>
@@ -1527,13 +1645,68 @@ async function savePostRows(shipId){
       const postId=tr.querySelector(".cfg-label").dataset.post;
       const post_label=tr.querySelector(".cfg-label").value.trim();
       const rank=tr.querySelector(".cfg-rank").value;
-      const person_id=tr.querySelector(".cfg-person").value||null;
+      const person_id=tr.querySelector(".cfg-person-value").value||null;
       await sb("PATCH","crew_ship_posts",{query:`?id=eq.${postId}`, body:{post_label, rank, person_id}});
     }
     await loadAll(); renderMatrixTab();
     notify("已儲存職位設定");
   }catch(e){ notify("儲存失敗："+e.message,"err"); }
 }
+
+/* ── 指派船員：輸入姓名關鍵字搜尋、從清單挑選（取代長長的下拉選單）──
+   一次綁定在 document 上（事件代理），船舶/職位設定畫面每次重繪都會自動生效。 */
+function showPersonCombo(input){
+  const postId=input.dataset.post;
+  const drop=document.querySelector(`.combo-drop[data-post="${postId}"]`);
+  if(!drop) return;
+  const q=input.value.trim().toLowerCase();
+  const list=[...State.persons.values()]
+    .filter(p=> !q || p.name.toLowerCase().includes(q) || (p.name_en||"").toLowerCase().includes(q))
+    .sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"))
+    .slice(0,40);
+  let html=`<div class="combo-item empty" data-id="" data-name="">（留空）</div>`;
+  html += list.length
+    ? list.map(p=>`<div class="combo-item" data-id="${p.id}" data-name="${esc(p.name)}">${esc(p.name)}${p.name_en?` <span style="color:var(--ink-3);font-size:11px">${esc(p.name_en)}</span>`:""}</div>`).join("")
+    : `<div class="combo-empty">找不到符合的船員</div>`;
+  drop.innerHTML=html;
+  drop.style.display="";
+}
+document.addEventListener("input", e=>{
+  if(e.target.classList && e.target.classList.contains("cfg-person-search")) showPersonCombo(e.target);
+});
+document.addEventListener("focus", e=>{
+  if(e.target.classList && e.target.classList.contains("cfg-person-search")) showPersonCombo(e.target);
+}, true);
+document.addEventListener("click", e=>{
+  const item=e.target.closest(".combo-item");
+  if(item){
+    const drop=item.closest(".combo-drop");
+    const postId=drop.dataset.post;
+    const search=document.querySelector(`.cfg-person-search[data-post="${postId}"]`);
+    const hidden=document.querySelector(`.cfg-person-value[data-post="${postId}"]`);
+    if(search) search.value=item.dataset.name||"";
+    if(hidden) hidden.value=item.dataset.id||"";
+    drop.style.display="none";
+    return;
+  }
+  document.querySelectorAll(".combo-drop").forEach(d=>{
+    const td=d.closest("td");
+    if(td && !td.contains(e.target)) d.style.display="none";
+  });
+});
+document.addEventListener("focusout", e=>{
+  if(!e.target.classList || !e.target.classList.contains("cfg-person-search")) return;
+  const postId=e.target.dataset.post;
+  setTimeout(()=>{
+    const hidden=document.querySelector(`.cfg-person-value[data-post="${postId}"]`);
+    const input=document.querySelector(`.cfg-person-search[data-post="${postId}"]`);
+    const drop=document.querySelector(`.combo-drop[data-post="${postId}"]`);
+    if(!hidden||!input) return;
+    const p=hidden.value? State.persons.get(hidden.value) : null;
+    input.value = p? p.name : "";
+    if(drop) drop.style.display="none";
+  }, 150);
+});
 async function addPost(shipId){
   try{
     const ship=State.ships.find(s=>s.id===shipId);
@@ -1568,6 +1741,7 @@ async function deleteShip(shipId){
 async function renderAdminTab(){
   document.getElementById("adminStats").textContent =
     `船員 ${State.persons.size} 人（在船 ${[...State.persons.values()].filter(p=>p.voyages.some(v=>!v.sign_off)).length} 人）・船舶 ${State.ships.length} 艘・今日 ${disp(todayISO())}`;
+  renderAliasTable();
   const body=document.getElementById("adminLogBody");
   body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px">載入中…</td></tr>`;
   try{
@@ -1585,6 +1759,61 @@ async function renderAdminTab(){
     body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px;color:var(--bad)">操作紀錄讀取失敗：${esc(e.message)}</td></tr>`;
   }
 }
+function renderAliasTable(){
+  const body=document.getElementById("aliasBody");
+  const rows=[...State.shipAliases.entries()];
+  body.innerHTML = rows.length
+    ? rows.map(([k,canon])=>{
+        const original=aliasRawByKey.get(k)||k;
+        return `<tr><td>${esc(original)}</td><td>${esc(canon)}</td><td><button class="btn sm danger" onclick="deleteAlias('${esc(k)}')">✕</button></td></tr>`;
+      }).join("")
+    : `<tr><td colspan="3" class="hint" style="text-align:center;padding:14px">目前沒有設定任何船名對應</td></tr>`;
+  document.getElementById("shipNameList").innerHTML = State.ships.map(s=>`<option value="${esc(s.name)}">`).join("");
+}
+document.getElementById("btnAddAlias").addEventListener("click", async ()=>{
+  const from=document.getElementById("aliasNewFrom").value.trim();
+  const to=document.getElementById("aliasNewTo").value.trim();
+  if(!from || !to){ notify("原始寫法、統一為都要填","err"); return; }
+  const k=normKey(from);
+  try{
+    aliasRawByKey.set(k, from);
+    await sb("POST","crew_ship_aliases",{query:"?on_conflict=norm_key", body:[{norm_key:k, alias:from, canonical:to}], prefer:"resolution=merge-duplicates,return=minimal"});
+    State.shipAliases.set(k, to);
+    document.getElementById("aliasNewFrom").value="";
+    document.getElementById("aliasNewTo").value="";
+    renderAliasTable();
+    notify("已新增船名對應");
+    logAction("新增船名對應", `${from} → ${to}`);
+  }catch(e){ notify("新增失敗："+e.message,"err"); }
+});
+async function deleteAlias(k){
+  if(!confirm("確定要刪除這個船名對應？")) return;
+  try{
+    await sb("DELETE","crew_ship_aliases",{query:`?norm_key=eq.${encodeURIComponent(k)}`, prefer:"return=minimal"});
+    State.shipAliases.delete(k);
+    renderAliasTable();
+    notify("已刪除");
+  }catch(e){ notify("刪除失敗："+e.message,"err"); }
+}
+document.getElementById("btnReapplyAliases").addEventListener("click", async ()=>{
+  const operator=requireChangeAuth();
+  if(!operator) return;
+  if(!confirm("會依目前的船名對應表，檢查資料庫裡所有船員的航次紀錄，把船名不一致的地方統一修正。確定要執行嗎？")) return;
+  try{
+    const voyages=await sb("GET","crew_voyages",{query:"?select=id,ship_name"});
+    let changed=0;
+    for(const v of voyages){
+      const norm=normalizeShipName(v.ship_name);
+      if(norm && norm!==v.ship_name){
+        await sb("PATCH","crew_voyages",{query:`?id=eq.${v.id}`, body:{ship_name:norm}, prefer:"return=minimal"});
+        changed++;
+      }
+    }
+    await loadAll();
+    notify(`修正完成，共更新 ${changed} 筆航次的船名`);
+    logAction("重新套用船名對應", `${operator}：更新 ${changed} 筆航次`);
+  }catch(e){ notify("執行失敗："+e.message,"err"); }
+});
 document.getElementById("btnAdminBackup").addEventListener("click", exportBackupFile);
 document.getElementById("btnAdminRefreshLog").addEventListener("click", renderAdminTab);
 document.getElementById("btnChangePassword").addEventListener("click", changeRuntimePassword);
