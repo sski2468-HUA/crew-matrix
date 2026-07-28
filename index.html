@@ -369,6 +369,12 @@ table.matrix tr.yellow td{background:var(--yellow)}
         </div>
       </div>
 
+      <div class="panelbox" style="margin-bottom:16px">
+        <b style="font-size:15px">🔑 異動密碼設定</b>
+        <p class="hint" style="margin:8px 0">辦理異動、刪除船員／船舶時需要輸入的密碼。修改時需要先輸入管理密碼（只有管理者知道，不會顯示在畫面或資料庫裡）。</p>
+        <button class="btn sm danger" id="btnChangePassword">🔧 修改異動密碼（需管理密碼）</button>
+      </div>
+
       <div class="panelbox">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
           <b style="font-size:15px">操作紀錄</b>
@@ -424,16 +430,46 @@ async function sb(method, table, {query="", body=null, prefer="return=representa
 
 /* ════════════════════════════════════════════════════════
    身份與密碼保護
-   ── 這個網站沒有帳號登入，用兩層輕量機制取代：
+   ── 這個網站沒有帳號登入，用三層輕量機制取代：
    1) 操作者姓名——任何會寫入資料的動作，當天第一次會問一次姓名，
       存在瀏覽器裡，同一天不會再問，純粹為了操作紀錄「是誰做的」。
    2) 異動密碼——只有「辦理異動」「刪除」這類容易誤觸、不好復原的
       動作才需要密碼；同一人同一天輸入正確一次後，當天不會再問。
-   密碼是寫死在這個檔案裡的固定字串，改密碼＝改下面這一行再重新部署。
+      這組密碼存在資料庫裡（crew_settings 表），可以在「資料管理」
+      分頁修改，不用改程式碼。
+   3) 管理密碼——要修改上面那組異動密碼時，必須先輸入這一組。
+      這組密碼寫死在這個檔案裡，不存資料庫、畫面上也不會顯示，
+      要換管理密碼才需要改程式碼重新部署，其他人無法透過網站介面更改。
    ════════════════════════════════════════════════════════ */
-const CHANGE_PASSWORD = "0000"; // ← 請改成你們自己的異動密碼，改完存檔重新部署即可
+const MASTER_PASSWORD = "am0ag003"; // ← 只有你知道；要換這組才需要改這行重新部署
+let RUNTIME_CHANGE_PASSWORD = "0000"; // 開站時會被 crew_settings 裡存的值蓋過，這只是資料庫還沒設定時的預設值
 const OP_NAME_KEY="crew_op_name", OP_NAME_DATE_KEY="crew_op_name_date";
 const GUARD_DATE_KEY="crew_guard_date";
+
+async function loadChangePassword(){
+  try{
+    const rows=await sb("GET","crew_settings",{query:"?select=value&key=eq.change_password"});
+    if(rows && rows[0]) RUNTIME_CHANGE_PASSWORD=rows[0].value;
+  }catch(e){ console.warn("讀取異動密碼設定失敗，暫用預設值",e); }
+}
+async function changeRuntimePassword(){
+  const master=prompt("修改異動密碼需要先輸入管理密碼：");
+  if(master===null) return;
+  if(master!==MASTER_PASSWORD){ notify("管理密碼錯誤，操作已取消","err"); return; }
+  const np=prompt("請輸入新的異動密碼：");
+  if(np===null) return;
+  if(!np.trim()){ notify("密碼不可空白","err"); return; }
+  const np2=prompt("請再輸入一次新的異動密碼以確認：");
+  if(np2!==np){ notify("兩次輸入不一致，操作已取消","err"); return; }
+  try{
+    await sb("POST","crew_settings",{query:"?on_conflict=key", body:[{key:"change_password", value:np.trim()}], prefer:"resolution=merge-duplicates,return=minimal"});
+    RUNTIME_CHANGE_PASSWORD=np.trim();
+    localStorage.removeItem(GUARD_DATE_KEY);
+    notify("異動密碼已更新，所有人下次辦理異動/刪除時需輸入新密碼");
+    const operator=getOperatorName();
+    logAction("修改異動密碼", `${operator||"(未留名)"}：已更新異動密碼`);
+  }catch(e){ notify("更新失敗："+e.message,"err"); }
+}
 
 function getOperatorName(){
   const today=todayISO();
@@ -453,7 +489,7 @@ function requireChangeAuth(){
   if(localStorage.getItem(GUARD_DATE_KEY)===today) return operator;
   const pw=prompt("此操作需要輸入異動密碼才能繼續（今日輸入一次即可）：");
   if(pw===null) return null;
-  if(pw!==CHANGE_PASSWORD){ notify("密碼錯誤，操作已取消","err"); return null; }
+  if(pw!==RUNTIME_CHANGE_PASSWORD){ notify("密碼錯誤，操作已取消","err"); return null; }
   localStorage.setItem(GUARD_DATE_KEY,today);
   return operator;
 }
@@ -540,6 +576,7 @@ async function loadAll(){
     State.ships = ships.map(s=> ({...s, posts: posts.filter(po=>po.ship_id===s.id)}));
     document.getElementById("cloudState").textContent="☁ 已連線";
     renderStats();
+    loadChangePassword();
   }catch(e){
     console.error(e);
     document.getElementById("cloudState").textContent="☁ 連線失敗";
@@ -1550,6 +1587,7 @@ async function renderAdminTab(){
 }
 document.getElementById("btnAdminBackup").addEventListener("click", exportBackupFile);
 document.getElementById("btnAdminRefreshLog").addEventListener("click", renderAdminTab);
+document.getElementById("btnChangePassword").addEventListener("click", changeRuntimePassword);
 
 /* ════════════════════════════════════════════════════════
    啟動
