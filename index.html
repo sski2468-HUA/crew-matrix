@@ -42,6 +42,24 @@ a{color:inherit}
 /* ───── 主區 ───── */
 #main{flex:1;display:flex;flex-direction:column;height:100vh;min-width:0}
 .topbar{display:flex;align-items:center;gap:10px;padding:12px 22px;background:#fff;border-bottom:1px solid var(--line);flex-shrink:0}
+.topbar2{display:flex;align-items:center;gap:18px;padding:10px 18px;background:var(--navy);color:#fff;flex-shrink:0;flex-wrap:wrap}
+.topbar2 .brandline{display:flex;flex-direction:column;line-height:1.25;margin-right:4px}
+.topbar2 .brandline b{font-size:14px}
+.topbar2 .brandline .hint{color:#9db0c2;font-size:10.5px}
+.maintabs{display:flex;gap:4px;background:rgba(255,255,255,.08);border-radius:8px;padding:3px}
+.maintab{border:none;background:none;color:#b9c8d6;font-family:var(--sans);font-size:13.5px;font-weight:700;padding:8px 16px;border-radius:6px;cursor:pointer}
+.maintab.active{background:var(--signal);color:#fff}
+.maintab:hover:not(.active){color:#fff}
+.topicons{margin-left:auto;display:flex;align-items:center;gap:6px}
+.topicons .hint{color:#9db0c2}
+.iconlink{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#dce9f1;text-decoration:none;border-radius:6px;padding:6px 9px;font-size:14px;cursor:pointer;line-height:1;font-family:var(--sans)}
+.iconlink:hover{background:rgba(255,255,255,.18)}
+@media(max-width:760px){
+  .topbar2{gap:8px}
+  .topbar2 .brandline{display:none}
+  .maintab{padding:7px 10px;font-size:12.5px}
+  .topicons .hint{display:none}
+}
 .topbar h2{font-size:16px;margin:0;font-weight:700}
 .topbar .sub{color:var(--ink-3);font-size:12.5px}
 .topbar .spacer{flex:1}
@@ -155,14 +173,8 @@ table.matrix tr.yellow td{background:var(--yellow)}
 #toast.show{display:block}
 #toast.ok{background:var(--navy)}
 #toast.err{background:var(--bad)}
-#sidebarToggle{display:none}
-#sidebarBackdrop{display:none}
 
 @media (max-width:820px){
-  #sidebar{position:fixed;left:0;top:0;bottom:0;z-index:700;transform:translateX(-100%);transition:transform .22s ease;width:230px}
-  #sidebar.open{transform:translateX(0)}
-  #sidebarToggle{display:inline-flex}
-  #sidebarBackdrop.open{display:block;position:fixed;inset:0;background:rgba(17,28,40,.45);z-index:650}
   .postboard{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
   .changegrid{grid-template-columns:1fr}
 }
@@ -171,45 +183,36 @@ table.matrix tr.yellow td{background:var(--yellow)}
 
 <body>
 
-<div id="sidebarBackdrop"></div>
-<aside id="sidebar">
-  <div class="portal-back" style="padding:10px 14px 0">
-    <a href="https://sski2468-hua.github.io/fleet-inspection/" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#cfe0ea;text-decoration:none;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:5px 8px;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.16)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">⟵ 回船舶檢查系統</a>
-  </div>
-  <div class="brand">
-    <h1>Crew Matrix<br>工作站</h1>
-    <small>FPMC · 船員資歷管理</small>
-  </div>
-  <nav id="sidebarNav">
-    <div class="nav-item active" data-tab="roster"><span class="num">①</span>船員資料庫</div>
-    <div class="nav-item" data-tab="change"><span class="num">②</span>異動作業</div>
-    <div class="nav-item" data-tab="matrix"><span class="num">③</span>Crew Matrix</div>
-    <div class="nav-item" data-tab="guide"><span class="num">📖</span>操作流程</div>
-    <div class="nav-item" data-tab="admin"><span class="num">🔐</span>資料管理</div>
-  </nav>
-  <div class="foot">
-    <div class="stat">資料庫：<b id="statPersons">–</b> 人・在船 <b id="statOnboard">–</b> 人</div>
-    <div style="margin-top:4px">今日 <span class="mono" id="statToday"></span></div>
-    <div style="margin-top:6px" id="cloudState">☁ 連線中…</div>
-  </div>
-</aside>
-
 <div id="main">
-  <header class="topbar">
-    <button id="sidebarToggle" class="btn sm dark" style="margin-right:4px" aria-label="選單">☰</button>
-    <h2 id="pageTitle">船員資料庫</h2>
-    <span class="sub" id="pageSub">匯入個人資歷表、搜尋、編輯</span>
-    <span class="spacer"></span>
+  <header class="topbar2">
+    <div class="brandline">
+      <b>⚓ Crew Matrix 工作站</b>
+      <span class="hint">FPMC · 船員資歷管理</span>
+    </div>
+    <nav id="mainNav" class="maintabs">
+      <button type="button" class="maintab active" data-tab="matrix">① Crew Matrix</button>
+      <button type="button" class="maintab" data-tab="roster">② 船員資料庫</button>
+    </nav>
+    <div class="topicons">
+      <span class="hint" id="topStats" style="margin-right:8px"></span>
+      <a href="https://sski2468-hua.github.io/fleet-inspection/" class="iconlink" title="回船舶檢查系統">⟵</a>
+      <button type="button" class="iconlink" id="btnGuideIcon" title="操作流程">📖</button>
+      <button type="button" class="iconlink" id="btnAdminIcon" title="資料管理">🔐</button>
+    </div>
   </header>
+  <div style="display:none" id="cloudState"></div>
+  <div style="display:none" id="statPersons"></div>
+  <div style="display:none" id="statOnboard"></div>
+  <div style="display:none" id="statToday"></div>
 
   <div id="content">
 
     <!-- ═══════ Tab 1：船員資料庫 ═══════ -->
-    <section id="tab-roster" class="tab-panel">
+    <section id="tab-roster" class="tab-panel" hidden>
       <div id="rosterListView">
         <div class="segbtn" id="rosterSubSeg" style="margin-bottom:14px">
-          <button type="button" class="on" data-v="list">① 船員資料清單</button>
-          <button type="button" data-v="upload">② 資歷上傳／填單連結</button>
+          <button type="button" class="on" data-v="list">① 船員個人資料</button>
+          <button type="button" data-v="upload">② 新增人員</button>
         </div>
 
         <div id="rosterSubUpload" hidden>
@@ -222,6 +225,13 @@ table.matrix tr.yellow td{background:var(--yellow)}
             <button class="btn dark" id="btnPickFile">選擇檔案</button>
             <button class="btn sm" id="btnDownloadTemplate">📄 下載空白範本</button>
             <input type="file" id="fileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
+          </div>
+          <div class="panelbox" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div>
+              <b style="font-size:13.5px">✍️ 頁面手動新增</b>
+              <div class="hint" style="margin-top:2px">沒有 Excel 檔，直接在網站上建一筆新資料</div>
+            </div>
+            <button class="btn sm primary" style="margin-left:auto" id="btnAddPerson">＋ 新增船員</button>
           </div>
           <div class="panelbox" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <div>
@@ -250,7 +260,6 @@ table.matrix tr.yellow td{background:var(--yellow)}
               <button class="btn sm danger" id="btnBulkDelete">🗑 刪除已選船員</button>
             </span>
             <span style="margin-left:auto;display:flex;gap:8px">
-              <button class="btn sm" id="btnAddPerson">＋ 新增船員</button>
               <button class="btn sm" id="btnExportBackup">⬇ 匯出備份</button>
             </span>
           </div>
@@ -285,26 +294,13 @@ table.matrix tr.yellow td{background:var(--yellow)}
       <div id="rosterEditView" hidden></div>
     </section>
 
-    <!-- ═══════ Tab 2：異動作業 ═══════ -->
-    <section id="tab-change" class="tab-panel" hidden>
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-        <select id="changeShipSel" style="font-weight:700;min-width:180px"></select>
-        <span class="hint" id="changeShipCargo"></span>
-        <button class="btn sm" style="margin-left:auto" id="btnNewShip">＋ 新增船舶</button>
-      </div>
-      <div class="postboard" id="postboard"></div>
-      <div id="changeCardHost"></div>
-      <div class="panelbox" id="changeLogHost" style="display:none">
-        <b style="font-size:13px">本次工作紀錄</b>
-        <ul id="changeLog" style="margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--ink-2)"></ul>
-      </div>
-    </section>
-
-    <!-- ═══════ Tab 3：Crew Matrix ═══════ -->
-    <section id="tab-matrix" class="tab-panel" hidden>
+    <!-- ═══════ Tab：Crew Matrix（含異動作業）═══════ -->
+    <section id="tab-matrix" class="tab-panel">
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <select id="matrixShipSel" style="font-weight:700;min-width:180px"></select>
-        <span style="margin-left:auto;display:flex;gap:8px">
+        <span class="hint" id="changeShipCargo"></span>
+        <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn sm" id="btnNewShip">＋ 新增船舶</button>
           <button class="btn sm" id="btnImportShips">📥 匯入船舶配置</button>
           <button class="btn sm" id="btnShipConfig">⚙ 船舶／職位設定</button>
           <button class="btn sm" id="btnExportShipCheck">📧 匯出船上核對用檔案</button>
@@ -317,11 +313,23 @@ table.matrix tr.yellow td{background:var(--yellow)}
       <div id="shipImportFailBox" style="display:none;margin-bottom:14px"></div>
       <div class="matrixwrap"><table class="matrix" id="matrixTable"></table></div>
       <div id="complianceBox" style="margin-top:14px"></div>
-      <p class="hint" style="margin-top:10px">黃色列為 SIRE 檢查重點年資。計算規則：Cadet 期間不計入職級年資；在船中航次以「今天」計算天數；「Years on this type of tanker」依船舶配置中設定的船型計算。</p>
+      <p class="hint" style="margin:10px 0 20px">黃色列為 SIRE 檢查重點年資。計算規則：Cadet 期間不計入職級年資；在船中航次以「今天」計算天數；「Years on this type of tanker」依船舶配置中設定的船型計算。</p>
+
+      <div class="panelbox" style="padding:16px 18px;margin-bottom:16px">
+        <b style="font-size:15px">🔄 異動作業</b>
+        <span class="hint" style="margin-left:8px">點選職位可以複選，填好每個職位的異動內容後一次送出</span>
+      </div>
+      <div class="postboard" id="postboard"></div>
+      <div id="batchChangeHost"></div>
+      <div class="panelbox" id="changeLogHost" style="display:none">
+        <b style="font-size:13px">本次工作紀錄</b>
+        <ul id="changeLog" style="margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--ink-2)"></ul>
+      </div>
     </section>
 
     <!-- ═══════ Tab 4：操作流程 ═══════ -->
     <section id="tab-guide" class="tab-panel" hidden>
+      <div style="margin-bottom:14px"><button class="btn sm" onclick="closeOverlayTab()">← 返回</button></div>
       <div class="panelbox" style="margin-bottom:16px">
         <p class="hint" style="font-size:13px;line-height:1.9">
           這份系統取代了「複製個人資歷表貼到船舶 SE 檔」的舊流程。<b style="color:var(--ink)">個人資歷是唯一的資料來源</b>，
@@ -430,6 +438,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
 
     <!-- ═══════ Tab 5：資料管理 ═══════ -->
     <section id="tab-admin" class="tab-panel" hidden>
+      <div style="margin-bottom:14px"><button class="btn sm" onclick="closeOverlayTab()">← 返回</button></div>
       <div class="panelbox" style="margin-bottom:16px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div>
@@ -439,6 +448,29 @@ table.matrix tr.yellow td{background:var(--yellow)}
           <span style="margin-left:auto;display:flex;gap:8px">
             <button class="btn sm primary" id="btnAdminBackup">⬇ 立即備份整個資料庫</button>
           </span>
+        </div>
+      </div>
+
+      <div class="panelbox" style="margin-bottom:16px;padding:0">
+        <div class="collapsible-hd" onclick="toggleAdminSection('restore')">
+          <span class="chev" id="chev-restore">▸</span><b style="font-size:15px;color:var(--bad)">🗄 從備份還原（災難復原用）</b>
+          <span class="hint">用「⬇ 立即備份整個資料庫」匯出的檔案，把船員基本資料、全部航次、船舶配置整批還原回資料庫</span>
+        </div>
+        <div id="sec-restore" class="collapsible-body" hidden>
+          <div class="panelbox" style="border-color:var(--bad);background:var(--bad-l);margin-bottom:12px">
+            <b style="color:var(--bad);font-size:13px">⚠ 請先了解這個功能會做什麼</b>
+            <ul style="margin:8px 0 0;padding-left:20px;font-size:12.5px;line-height:1.9">
+              <li>依「姓名」比對：資料庫裡已經有的人，資料會被備份檔案<b>覆蓋</b>（含全部航次，整批替換成備份裡的內容）；沒有的人會新增。</li>
+              <li>船舶、職位配置比照辦理，依「船名」比對覆蓋或新增。</li>
+              <li>資料量大時（上千人）需要幾分鐘，過程中請不要關閉分頁。</li>
+              <li>這個動作<b>無法復原</b>，建議先確認目前資料庫狀況、必要時再備份一次現況，再執行還原。</li>
+            </ul>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <input type="file" id="restoreFileInput" accept=".xlsx,.xls">
+            <button class="btn danger" id="btnStartRestore">🗄 開始還原</button>
+          </div>
+          <div id="restoreProgress" class="hint" style="margin-top:10px"></div>
         </div>
       </div>
 
@@ -575,25 +607,47 @@ async function sb(method, table, {query="", body=null, prefer="return=representa
   return txt ? JSON.parse(txt) : null;
 }
 /* Supabase/PostgREST 預設一次最多回傳 1000 筆，資料量一大（例如上千人的航次紀錄）
-   會被悄悄截斷，畫面上看起來像是「這個人資料是空的」。這裡用 Range 分頁把整張表撈完。 */
+   會被悄悄截斷，畫面上看起來像是「這個人資料是空的」。這裡用 Range 分頁把整張表撈完。
+   第一次請求順便問總筆數（Prefer: count=exact），知道總共幾頁後，
+   其餘頁面「平行」一次抓完，不是一頁等一頁——這是手機/4G 常常卡很久的主因，
+   航次表要抓 12 頁以上，依序抓等於 12 次網路來回時間疊加起來。 */
+async function sbAllPage(table, query, from, PAGE, withCount){
+  const headers={
+    "apikey": CLOUD.key,
+    "Authorization": "Bearer "+CLOUD.key,
+    "Range-Unit": "items",
+    "Range": `${from}-${from+PAGE-1}`,
+  };
+  if(withCount) headers["Prefer"]="count=exact";
+  const res=await fetch(`${CLOUD.url}/rest/v1/${table}${query}`, {headers});
+  if(!res.ok){
+    const t=await res.text().catch(()=> "");
+    throw new Error(`GET ${table} 失敗 (${res.status}): ${t.slice(0,200)}`);
+  }
+  const txt=await res.text();
+  const batch=txt? JSON.parse(txt) : [];
+  let total=null;
+  const cr=res.headers.get("content-range"); // 例如 "0-999/12281"
+  if(cr){ const m=cr.match(/\/(\d+)$/); if(m) total=parseInt(m[1],10); }
+  return {batch, total};
+}
 async function sbAll(table, query=""){
   const PAGE=1000;
-  let all=[], from=0;
-  while(true){
-    const res=await fetch(`${CLOUD.url}/rest/v1/${table}${query}`, {
-      headers:{
-        "apikey": CLOUD.key,
-        "Authorization": "Bearer "+CLOUD.key,
-        "Range-Unit": "items",
-        "Range": `${from}-${from+PAGE-1}`,
-      }
-    });
-    if(!res.ok){
-      const t=await res.text().catch(()=> "");
-      throw new Error(`GET ${table} 失敗 (${res.status}): ${t.slice(0,200)}`);
+  const first=await sbAllPage(table, query, 0, PAGE, true);
+  let all=first.batch;
+  if(first.total!=null){
+    if(first.total>PAGE){
+      const froms=[];
+      for(let f=PAGE; f<first.total; f+=PAGE) froms.push(f);
+      const rest=await Promise.all(froms.map(f=>sbAllPage(table, query, f, PAGE, false)));
+      rest.forEach(r=> all=all.concat(r.batch));
     }
-    const txt=await res.text();
-    const batch=txt? JSON.parse(txt) : [];
+    return all;
+  }
+  // 拿不到總筆數（少數環境不支援）時，退回原本一頁一頁循序抓，直到不足一頁為止
+  let from=PAGE;
+  while(first.batch.length===PAGE){
+    const {batch}=await sbAllPage(table, query, from, PAGE, false);
     all=all.concat(batch);
     if(batch.length<PAGE) break;
     from+=PAGE;
@@ -800,6 +854,8 @@ function renderStats(){
   for(const p of State.persons.values()) if(p.voyages.some(v=>!v.sign_off)) onboard++;
   document.getElementById("statOnboard").textContent=onboard;
   document.getElementById("statToday").textContent=disp(todayISO());
+  const top=document.getElementById("topStats");
+  if(top) top.textContent=`${State.persons.size} 人・在船 ${onboard}・${disp(todayISO())}`;
 }
 
 /* ════════════════════════════════════════════════════════
@@ -957,8 +1013,7 @@ function ocimfVal(c,fn){
    ════════════════════════════════════════════════════════ */
 const TAB_META={
   roster:["船員資料庫","匯入個人資歷表、搜尋、編輯"],
-  change:["異動作業","辦理上船／下船，同步更新 Crew Matrix"],
-  matrix:["Crew Matrix","即時計算、匯出 Excel、複製到 OCIMF"],
+  matrix:["Crew Matrix","即時計算、辦理異動、匯出 Excel"],
   guide:["操作流程","給所有人參考的完整使用說明"],
   admin:["資料管理","操作紀錄、備份"],
 };
@@ -972,35 +1027,32 @@ function requireAdminTabAuth(){
   localStorage.setItem(ADMIN_TAB_GUARD_KEY, today);
   return true;
 }
+let lastMainTab="matrix";
 function showTab(id){
   if(id==="admin" && !requireAdminTabAuth()) return;
   document.querySelectorAll(".tab-panel").forEach(el=> el.hidden = el.id!=="tab-"+id);
-  document.querySelectorAll(".nav-item[data-tab]").forEach(el=> el.classList.toggle("active", el.dataset.tab===id));
-  document.getElementById("pageTitle").textContent=TAB_META[id][0];
-  document.getElementById("pageSub").textContent=TAB_META[id][1];
+  if(id==="matrix" || id==="roster"){
+    lastMainTab=id;
+    document.querySelectorAll(".maintab").forEach(el=> el.classList.toggle("active", el.dataset.tab===id));
+  }
   if(id==="roster"){
     document.getElementById("rosterEditView").hidden = true;
     document.getElementById("rosterEditView").innerHTML = "";
     document.getElementById("rosterListView").hidden = false;
     renderRoster();
   }
-  if(id==="change") renderChangeTab();
   if(id==="matrix") renderMatrixTab();
   if(id==="admin") renderAdminTab();
 }
-document.querySelectorAll(".nav-item[data-tab]").forEach(el=>{
-  el.addEventListener("click", ()=>{ showTab(el.dataset.tab); closeMobileSidebar(); });
+document.querySelectorAll(".maintab[data-tab]").forEach(el=>{
+  el.addEventListener("click", ()=> showTab(el.dataset.tab));
 });
-function openMobileSidebar(){
-  document.getElementById("sidebar").classList.add("open");
-  document.getElementById("sidebarBackdrop").classList.add("open");
-}
-function closeMobileSidebar(){
-  document.getElementById("sidebar").classList.remove("open");
-  document.getElementById("sidebarBackdrop").classList.remove("open");
-}
-document.getElementById("sidebarToggle").addEventListener("click", openMobileSidebar);
-document.getElementById("sidebarBackdrop").addEventListener("click", closeMobileSidebar);
+document.getElementById("btnGuideIcon").addEventListener("click", ()=> showTab("guide"));
+document.getElementById("btnAdminIcon").addEventListener("click", ()=> showTab("admin"));
+/* 操作流程/資料管理是右上角小圖示開的「疊加」畫面，不屬於兩大主頁籤，
+   關閉時要回到原本停留的那個主頁籤（Crew Matrix 或 船員資料庫），而不是每次都跳回 Crew Matrix。 */
+function closeOverlayTab(){ showTab(lastMainTab); }
+function closeMobileSidebar(){ /* 已無側欄，保留空函式避免呼叫處出錯 */ }
 
 /* ════════════════════════════════════════════════════════
    Tab 1：船員資料庫
@@ -1309,6 +1361,128 @@ function exportBackupFile(){
   }catch(e){ notify("匯出失敗："+e.message, "err"); }
 }
 
+/* ── 從備份還原（災難復原用）──
+   讀取「⬇ 立即備份整個資料庫」產生的三分頁 Excel，依姓名/船名比對，
+   已存在的覆蓋、沒有的新增。為了不要等太久，船員／航次用小批次併發處理。 */
+async function restorePerson(r, voyByName){
+  const name=String(r["姓名"]||"").trim();
+  if(!name) return null;
+  const person={
+    name, name_en:String(r["英文名"]||"").trim(), manning_agency:String(r["勞務公司"]||"").trim(),
+    rank_now:String(r["現職"]||"").trim(), nationality:String(r["國籍"]||"").trim(),
+    coc:String(r["證書"]||"").trim(), issuing_country:String(r["發證國"]||"").trim(),
+    tanker_cert:String(r["Tanker cert"]||"").trim(), stcw:String(r["STCW"]||"").trim(),
+    radio:String(r["電台"]||"").trim(), english:String(r["英語"]||"").trim(),
+    join_date: toISO(r["進公司日"]),
+  };
+  const existing=[...State.persons.values()].find(p=>p.name===name);
+  let pid;
+  if(existing){
+    await sb("PATCH","crew_persons",{query:`?id=eq.${existing.id}`, body:person, prefer:"return=minimal"});
+    pid=existing.id;
+  }else{
+    const created=await sb("POST","crew_persons",{body:person});
+    pid=created[0].id;
+  }
+  await sb("DELETE","crew_voyages",{query:`?person_id=eq.${pid}`, prefer:"return=minimal"});
+  const voyages=voyByName[name]||[];
+  for(const chunk of chunkArray(voyages,300)){
+    await sb("POST","crew_voyages",{body: chunk.map(v=>({...v, person_id:pid}))});
+  }
+  return {name, pid};
+}
+document.getElementById("btnStartRestore").addEventListener("click", async ()=>{
+  const f=document.getElementById("restoreFileInput").files[0];
+  if(!f){ notify("請先選擇備份檔案","err"); return; }
+  const operator=requireChangeAuth();
+  if(!operator) return;
+  const prog=document.getElementById("restoreProgress");
+  prog.textContent="讀取檔案中…";
+  try{
+    const buf=await f.arrayBuffer();
+    const wb=XLSX.read(buf,{type:"array", cellDates:true});
+    const shPerson=wb.Sheets["船員基本資料"], shVoy=wb.Sheets["全部航次"], shShip=wb.Sheets["船舶配置"];
+    if(!shPerson || !shVoy) throw new Error("找不到「船員基本資料」或「全部航次」分頁，請確認是用「立即備份整個資料庫」匯出的檔案");
+    const personRows=XLSX.utils.sheet_to_json(shPerson,{defval:""});
+    const voyRows=XLSX.utils.sheet_to_json(shVoy,{defval:""});
+    const shipRows=shShip? XLSX.utils.sheet_to_json(shShip,{defval:""}) : [];
+
+    if(!confirm(`即將還原 ${personRows.length} 位船員、${voyRows.length} 筆航次、${shipRows.length} 筆船舶職位設定。\n已存在同名的資料會被備份檔案覆蓋，確定要執行嗎？`)){ prog.textContent=""; return; }
+
+    const voyByName={};
+    voyRows.forEach(r=>{
+      const name=String(r["姓名"]||"").trim(); if(!name) return;
+      const off=String(r["下船日"]||"").trim();
+      (voyByName[name]=voyByName[name]||[]).push({
+        rank: String(r["職級"]||"").trim()||null,
+        ship_name: String(r["船名"]||"").trim(),
+        sign_on: toISO(r["上船日"]),
+        sign_off: (off==="(在船中)"||!off)? null : toISO(r["下船日"]),
+        cargo_types: String(r["船型"]||"").split("+").map(s=>s.trim()).filter(Boolean),
+        note: String(r["備註"]||"").trim(),
+      });
+    });
+
+    const nameRows=personRows.filter(r=>String(r["姓名"]||"").trim());
+    const personIdByName={};
+    const CONC=8;
+    let done=0;
+    for(let i=0;i<nameRows.length;i+=CONC){
+      const batch=nameRows.slice(i,i+CONC);
+      const results=await Promise.all(batch.map(r=>restorePerson(r, voyByName).catch(e=>({error:e.message, name:r["姓名"]}))));
+      results.forEach(res=>{ if(res && res.pid) personIdByName[res.name]=res.pid; });
+      done+=batch.length;
+      prog.textContent=`還原船員資料中…（${done}/${nameRows.length}）`;
+    }
+
+    const shipByName={};
+    shipRows.forEach(r=>{
+      const sname=String(r["船名"]||"").trim(); if(!sname) return;
+      if(!shipByName[sname]) shipByName[sname]={ cargo_types:String(r["本船船型"]||"").split("+").map(s=>s.trim()).filter(Boolean), posts:[] };
+      shipByName[sname].posts.push({ post_label:String(r["職位"]||"").trim(), rank:String(r["年資職級"]||"").trim(), person_name:String(r["指派船員"]||"").trim() });
+    });
+    const shipNames=Object.keys(shipByName);
+    let sdone=0;
+    for(const sname of shipNames){
+      const sdata=shipByName[sname];
+      const existingShip=State.ships.find(s=>s.name===sname);
+      let shipId, existingPosts=[];
+      if(existingShip){
+        await sb("PATCH","crew_ships",{query:`?id=eq.${existingShip.id}`, body:{cargo_types:sdata.cargo_types}, prefer:"return=minimal"});
+        shipId=existingShip.id; existingPosts=existingShip.posts;
+      }else{
+        const created=await sb("POST","crew_ships",{body:{name:sname, cargo_types:sdata.cargo_types}});
+        shipId=created[0].id;
+      }
+      for(let i=0;i<sdata.posts.length;i++){
+        const po=sdata.posts[i];
+        let pid2 = po.person_name ? personIdByName[po.person_name] : null;
+        if(!pid2 && po.person_name){
+          const ep=[...State.persons.values()].find(p=>p.name===po.person_name);
+          if(ep) pid2=ep.id;
+        }
+        const matchPost=existingPosts.find(p=>p.post_label===po.post_label);
+        if(matchPost){
+          await sb("PATCH","crew_ship_posts",{query:`?id=eq.${matchPost.id}`, body:{rank:po.rank, person_id:pid2||null}, prefer:"return=minimal"});
+        }else{
+          await sb("POST","crew_ship_posts",{body:{ship_id:shipId, post_label:po.post_label, rank:po.rank, person_id:pid2||null, sort_order:i}});
+        }
+      }
+      sdone++;
+      prog.textContent=`還原船舶配置中…（${sdone}/${shipNames.length}）`;
+    }
+
+    await loadAll();
+    renderAdminTab();
+    prog.textContent=`✅ 還原完成：${nameRows.length} 位船員、${shipNames.length} 艘船`;
+    notify("資料庫還原完成");
+    logAction("還原備份", `${operator}：還原 ${nameRows.length} 位船員、${shipNames.length} 艘船`);
+  }catch(e){
+    prog.textContent="";
+    notify("還原失敗："+e.message, "err");
+  }
+});
+
 /* ── 單一船員的 Crew Matrix 匯出 ──
    優先用他目前實際指派到的職位（決定職級與船型範圍）；
    如果目前沒有指派在任何船上，退而用「現職」欄位判斷職級，船型範圍用全部船型概算。 */
@@ -1480,39 +1654,22 @@ async function deletePerson(personId){
 }
 
 /* ════════════════════════════════════════════════════════
-   Tab 2：異動作業
+   異動作業（併入 Crew Matrix 分頁，共用同一個船舶選單）
+   職位板可複選多個職位，各自填好上船人選後一次送出。
    ════════════════════════════════════════════════════════ */
-let changeState={ shipId:null, postId:null };
-
-function renderChangeTab(){
-  const sel=document.getElementById("changeShipSel");
-  if(!State.ships.length){
-    sel.innerHTML=`<option value="">（尚無船舶，請先新增）</option>`;
-    document.getElementById("postboard").innerHTML="";
-    document.getElementById("changeShipCargo").textContent="";
-    document.getElementById("changeCardHost").innerHTML="";
-    return;
-  }
-  if(!changeState.shipId || !State.ships.some(s=>s.id===changeState.shipId)) changeState.shipId=State.ships[0].id;
-  sel.innerHTML = sortShipsByName(State.ships).map(s=>`<option value="${s.id}" ${s.id===changeState.shipId?"selected":""}>${esc(shipLabel(s))}</option>`).join("");
-  const ship=State.ships.find(s=>s.id===changeState.shipId);
-  document.getElementById("changeShipCargo").textContent = "本船船型：" + (ship.cargo_types||[]).map(c=>TYPE_CN[c]).join("＋");
-  renderPostboard(ship);
-  document.getElementById("changeCardHost").innerHTML="";
-}
-document.getElementById("changeShipSel").addEventListener("change", e=>{ changeState.shipId=e.target.value; changeState.postId=null; renderChangeTab(); });
+let changeState={ selected:new Set() };
 
 function renderPostboard(ship){
-  const t=todayISO();
   document.getElementById("postboard").innerHTML = ship.posts.map(po=>{
     const person = po.person_id? State.persons.get(po.person_id) : null;
     const cur = person? person.voyages.find(v=>!v.sign_off) : null;
+    const picked = changeState.selected.has(po.id);
     let statusHtml="";
     if(person && cur) statusHtml=`<div class="status on">在船 ${disp(cur.sign_on)} 起</div>`;
     else if(person && !cur) statusHtml=`<div class="status warn">⚠ 個人檔無在船中航次</div>`;
     else if(po.person_id && !person) statusHtml=`<div class="status warn">⚠ 資料庫查無此人</div>`;
-    return `<button class="postcard ${po.id===changeState.postId?'sel':''}" onclick="selectPost('${po.id}')">
-      <div class="lbl">${esc(po.post_label)}</div>
+    return `<button class="postcard ${picked?'sel':''}" onclick="togglePostSelect('${po.id}')">
+      <div class="lbl">${picked?"☑":"☐"} ${esc(po.post_label)}</div>
       <div class="name">${person? esc(person.name) : '<span style="color:#9aa8b3;font-weight:600">（缺配）</span>'}</div>
       ${statusHtml}
       ${person? `<div style="margin-top:6px"><span class="hint" style="text-decoration:underline;cursor:pointer" onclick="event.stopPropagation();goToPersonEdit('${person.id}')">👤 查看個人資歷</span></div>` : ""}
@@ -1522,103 +1679,111 @@ function renderPostboard(ship){
 function goToPersonEdit(personId){
   showTab("roster");
   openPersonEdit(personId);
-  closeMobileSidebar();
 }
-function selectPost(postId){
-  changeState.postId=postId;
-  const ship=State.ships.find(s=>s.id===changeState.shipId);
+function togglePostSelect(postId){
+  if(changeState.selected.has(postId)) changeState.selected.delete(postId);
+  else changeState.selected.add(postId);
+  const ship=State.ships.find(s=>s.id===matrixState.shipId);
   renderPostboard(ship);
-  renderChangeCard(ship);
+  renderBatchChangeForm(ship);
 }
-function renderChangeCard(ship){
-  const po=ship.posts.find(p=>p.id===changeState.postId);
-  const offPerson = po.person_id? State.persons.get(po.person_id) : null;
-  const onboardVoy = offPerson? offPerson.voyages.find(v=>!v.sign_off) : null;
-  const candidates=[...State.persons.values()]
-    .filter(p=> p.id!==po.person_id)
-    .map(p=>({p, onboard: p.voyages.some(v=>!v.sign_off)}))
-    .sort((a,b)=> (a.onboard?1:0)-(b.onboard?1:0) || a.p.name.localeCompare(b.p.name,"zh-Hant"));
-
-  document.getElementById("changeCardHost").innerHTML = `
+function renderBatchChangeForm(ship){
+  const host=document.getElementById("batchChangeHost");
+  if(!changeState.selected.size){ host.innerHTML=""; return; }
+  const posts=[...changeState.selected].map(id=>ship.posts.find(p=>p.id===id)).filter(Boolean);
+  host.innerHTML = `
   <div class="changecard">
-    <div style="font-size:15px;font-weight:800;margin-bottom:14px">${esc(shipLabel(ship))} · ${esc(po.post_label)} 異動單</div>
-    <div class="changegrid">
-      <div class="changebox">
-        <div class="hd">下船 SIGN-OFF</div>
-        ${offPerson? `
-          <div style="font-size:17px;font-weight:800">${esc(offPerson.name)} <span class="hint" style="font-size:12px;font-weight:600;text-decoration:underline;cursor:pointer" onclick="goToPersonEdit('${offPerson.id}')">👤 個人資歷</span></div>
-          ${onboardVoy
-            ? `<div class="hint">在船中：${esc(onboardVoy.ship_name)}，${disp(onboardVoy.sign_on)} 上船（${dayDiff(onboardVoy.sign_on, todayISO())} 天）<br>將把下船日填為右方日期。</div>`
-            : `<div class="hint" style="color:var(--bad)">個人檔中找不到「在船中」航次，只會解除職位、不改資歷。</div>`}
-        ` : `<div class="hint">此職位目前無人，僅辦理上船。</div>`}
-      </div>
-      <div style="text-align:center;padding-top:8px">
-        <div class="hint" style="font-weight:700;margin-bottom:4px">實際異動日</div>
-        <input type="date" id="changeDate" value="${todayISO()}" class="mono" style="font-weight:700">
-      </div>
-      <div class="changebox">
-        <div class="hd">上船 SIGN-ON</div>
-        <select id="changeNewPerson" style="width:100%">
-          <option value="">（不補人，職位留空）</option>
-          ${candidates.map(({p,onboard})=>`<option value="${p.id}">${esc(p.name)}${p.rank_now?` · ${esc(p.rank_now)}`:""}${onboard?"（在船）":""}</option>`).join("")}
-        </select>
-        <div class="hint" id="changeNewHint" style="margin-top:6px"></div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:800">${esc(shipLabel(ship))} · 已選 ${posts.length} 個職位</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <span class="hint" style="font-weight:700">實際異動日</span>
+        <input type="date" id="batchChangeDate" value="${todayISO()}" class="mono" style="font-weight:700">
       </div>
     </div>
-    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn" onclick="cancelChangeCard()">取消</button>
-      <button class="btn primary" onclick="applyChange('${po.id}')">✓ 確認異動</button>
+    ${posts.map(po=>{
+      const offPerson=po.person_id? State.persons.get(po.person_id) : null;
+      const onboardVoy=offPerson? offPerson.voyages.find(v=>!v.sign_off) : null;
+      return `<div class="changebox" style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <b style="font-size:13.5px">${esc(po.post_label)}</b>
+          <button class="btn sm" style="margin-left:auto" onclick="togglePostSelect('${po.id}')">✕ 移除</button>
+        </div>
+        <div class="changegrid" style="align-items:start">
+          <div>
+            <div class="hd">下船 SIGN-OFF</div>
+            ${offPerson? `
+              <div style="font-size:15px;font-weight:800">${esc(offPerson.name)}</div>
+              ${onboardVoy
+                ? `<div class="hint">在船中：${esc(onboardVoy.ship_name)}，${disp(onboardVoy.sign_on)} 上船（${dayDiff(onboardVoy.sign_on, todayISO())} 天）</div>`
+                : `<div class="hint" style="color:var(--bad)">個人檔無在船中航次，只會解除職位</div>`}
+            ` : `<div class="hint">此職位目前無人，僅辦理上船</div>`}
+          </div>
+          <div style="position:relative">
+            <div class="hd">上船 SIGN-ON</div>
+            <input type="text" class="cfg-person-search" data-post="${po.id}" autocomplete="off" placeholder="輸入姓名搜尋…（留空＝不補人）" style="width:100%">
+            <input type="hidden" class="cfg-person-value" data-post="${po.id}" value="">
+            <div class="combo-drop" data-post="${po.id}" style="display:none"></div>
+          </div>
+        </div>
+      </div>`;
+    }).join("")}
+    <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="clearPostSelection()">取消全部</button>
+      <button class="btn primary" onclick="submitBatchChanges()">✓ 確認送出全部異動（${posts.length}）</button>
     </div>
   </div>`;
-  document.getElementById("changeNewPerson").addEventListener("change", e=>{
-    const hint=document.getElementById("changeNewHint");
-    if(e.target.value) hint.textContent = `將以 ${po.rank} 職級、${shipLabel(ship)}、${disp(document.getElementById("changeDate").value)} 新增一筆在船中航次。`;
-    else hint.textContent="";
-  });
 }
-function cancelChangeCard(){ changeState.postId=null; document.getElementById("changeCardHost").innerHTML=""; renderPostboard(State.ships.find(s=>s.id===changeState.shipId)); }
-
-async function applyChange(postId){
+function clearPostSelection(){
+  changeState.selected.clear();
+  const ship=State.ships.find(s=>s.id===matrixState.shipId);
+  renderPostboard(ship);
+  renderBatchChangeForm(ship);
+}
+async function submitBatchChanges(){
   const operator=requireChangeAuth();
   if(!operator) return;
-  const ship=State.ships.find(s=>s.id===changeState.shipId);
-  const po=ship.posts.find(p=>p.id===postId);
-  const date=document.getElementById("changeDate").value;
-  const newPersonId=document.getElementById("changeNewPerson").value;
+  const ship=State.ships.find(s=>s.id===matrixState.shipId);
+  const date=document.getElementById("batchChangeDate").value;
   if(!date){ notify("請選擇異動日期","err"); return; }
-  const acts=[];
+  const posts=[...changeState.selected].map(id=>ship.posts.find(p=>p.id===id)).filter(Boolean);
+  const allActs=[];
   try{
-    if(po.person_id){
-      const offPerson=State.persons.get(po.person_id);
-      if(offPerson){
-        const ob=offPerson.voyages.find(v=>!v.sign_off);
-        if(ob){
-          await sb("PATCH","crew_voyages",{query:`?id=eq.${ob.id}`, body:{sign_off:date}});
-          acts.push(`${offPerson.name} 下船（${ob.ship_name}，${disp(date)}）`);
-        }else acts.push(`${offPerson.name}：無在船中航次，僅解除職位`);
+    for(const po of posts){
+      const newPersonId=document.querySelector(`.cfg-person-value[data-post="${po.id}"]`).value || "";
+      const acts=[];
+      if(po.person_id){
+        const offPerson=State.persons.get(po.person_id);
+        if(offPerson){
+          const ob=offPerson.voyages.find(v=>!v.sign_off);
+          if(ob){
+            await sb("PATCH","crew_voyages",{query:`?id=eq.${ob.id}`, body:{sign_off:date}});
+            acts.push(`${offPerson.name} 下船（${ob.ship_name}，${disp(date)}）`);
+          }else acts.push(`${offPerson.name}：無在船中航次，僅解除職位`);
+        }
       }
+      if(newPersonId){
+        const np=State.persons.get(newPersonId);
+        const already=np.voyages.find(v=>!v.sign_off);
+        if(already){ notify(`${np.name} 目前仍在 ${already.ship_name} 船上（${disp(already.sign_on)} 上船）——請先辦理其下船，${po.post_label} 這筆已略過`, "err"); continue; }
+        await sb("POST","crew_voyages",{body:[{person_id:newPersonId, rank:po.rank, ship_name:ship.name, sign_on:date, sign_off:null, cargo_types: ship.cargo_types||[]}]});
+        await sb("PATCH","crew_persons",{query:`?id=eq.${newPersonId}`, body:{rank_now:po.rank}});
+        acts.push(`${np.name} 上船（${shipLabel(ship)} ${po.post_label}，${disp(date)}）`);
+      }
+      await sb("PATCH","crew_ship_posts",{query:`?id=eq.${po.id}`, body:{person_id: newPersonId||null}});
+      allActs.push(`【${po.post_label}】${acts.join("；")}`);
     }
-    if(newPersonId){
-      const np=State.persons.get(newPersonId);
-      const already=np.voyages.find(v=>!v.sign_off);
-      if(already){ notify(`${np.name} 目前仍在 ${already.ship_name} 船上（${disp(already.sign_on)} 上船）——請先辦理其下船`, "err"); return; }
-      await sb("POST","crew_voyages",{body:[{person_id:newPersonId, rank:po.rank, ship_name:ship.name, sign_on:date, sign_off:null, cargo_types: ship.cargo_types||[]}]});
-      await sb("PATCH","crew_persons",{query:`?id=eq.${newPersonId}`, body:{rank_now:po.rank}});
-      acts.push(`${np.name} 上船（${shipLabel(ship)} ${po.post_label}，${disp(date)}）`);
-    }
-    await sb("PATCH","crew_ship_posts",{query:`?id=eq.${postId}`, body:{person_id: newPersonId||null}});
     await loadAll();
-    changeState.postId=null;
-    document.getElementById("changeCardHost").innerHTML="";
-    renderChangeTab();
+    changeState.selected.clear();
+    document.getElementById("batchChangeHost").innerHTML="";
+    renderMatrixTab();
     const logHost=document.getElementById("changeLogHost");
     logHost.style.display="";
-    document.getElementById("changeLog").insertAdjacentHTML("afterbegin", `<li><span class="mono" style="font-size:11.5px">${new Date().toLocaleTimeString()}</span>　${acts.join("；")}</li>`);
-    logAction("異動", `${operator}：${shipLabel(ship)} ${po.post_label} — ${acts.join("；")}`);
-    notify("異動完成，Crew Matrix 已同步更新");
+    document.getElementById("changeLog").insertAdjacentHTML("afterbegin",
+      allActs.map(a=>`<li><span class="mono" style="font-size:11.5px">${new Date().toLocaleTimeString()}</span>　${a}</li>`).join(""));
+    logAction("異動", `${operator}：${shipLabel(ship)} — ${allActs.join("／")}`);
+    notify(`異動完成（${posts.length} 個職位），Crew Matrix 已同步更新`);
   }catch(e){ notify("異動失敗："+e.message, "err"); }
 }
-
 document.getElementById("btnNewShip").addEventListener("click", async ()=>{
   const name=prompt("新船舶名稱：");
   if(!name) return;
@@ -1627,14 +1792,14 @@ document.getElementById("btnNewShip").addEventListener("click", async ()=>{
     const shipId=created[0].id;
     await sb("POST","crew_ship_posts",{body: DEFAULT_POSTS.map((p,i)=>({...p, ship_id:shipId, sort_order:i}))});
     await loadAll();
-    changeState.shipId=shipId;
-    renderChangeTab();
+    matrixState.shipId=shipId;
+    renderMatrixTab();
     notify(`已新增船舶「${name}」，含 9 個預設職位`);
   }catch(e){ notify("新增失敗："+e.message, "err"); }
 });
 
 /* ════════════════════════════════════════════════════════
-   Tab 3：Crew Matrix
+   Crew Matrix
    ════════════════════════════════════════════════════════ */
 let matrixState={ shipId:null, configOpen:false };
 
@@ -1644,14 +1809,25 @@ function renderMatrixTab(){
     sel.innerHTML=`<option value="">（尚無船舶）</option>`;
     document.getElementById("matrixTable").innerHTML="";
     document.getElementById("shipConfigHost").innerHTML="";
+    document.getElementById("changeShipCargo").textContent="";
+    document.getElementById("postboard").innerHTML="";
+    document.getElementById("batchChangeHost").innerHTML="";
     return;
   }
   if(!matrixState.shipId || !State.ships.some(s=>s.id===matrixState.shipId)) matrixState.shipId=State.ships[0].id;
   sel.innerHTML = sortShipsByName(State.ships).map(s=>`<option value="${s.id}" ${s.id===matrixState.shipId?"selected":""}>${esc(shipLabel(s))}</option>`).join("");
+  const ship=State.ships.find(s=>s.id===matrixState.shipId);
+  document.getElementById("changeShipCargo").textContent = "本船船型：" + (ship.cargo_types||[]).map(c=>TYPE_CN[c]).join("＋");
   renderMatrixTable();
   if(matrixState.configOpen) renderShipConfig(); else document.getElementById("shipConfigHost").innerHTML="";
+  renderPostboard(ship);
+  renderBatchChangeForm(ship);
 }
-document.getElementById("matrixShipSel").addEventListener("change", e=>{ matrixState.shipId=e.target.value; renderMatrixTable(); if(matrixState.configOpen) renderShipConfig(); });
+document.getElementById("matrixShipSel").addEventListener("change", e=>{
+  matrixState.shipId=e.target.value;
+  changeState.selected.clear();
+  renderMatrixTab();
+});
 document.getElementById("btnShipConfig").addEventListener("click", ()=>{ matrixState.configOpen=!matrixState.configOpen; renderMatrixTab(); });
 
 document.getElementById("btnImportShips").addEventListener("click", ()=> document.getElementById("shipFileInput").click());
@@ -2124,7 +2300,7 @@ async function deleteShip(shipId){
     await sb("DELETE","crew_ships",{query:`?id=eq.${shipId}`, prefer:"return=minimal"});
     await loadAll();
     matrixState.shipId=null; matrixState.configOpen=false;
-    changeState.shipId=null;
+    changeState.selected.clear();
     renderMatrixTab();
     notify("已刪除該船舶");
     logAction("刪除船舶", `${operator}：刪除 ${shipName}`);
@@ -2294,8 +2470,7 @@ document.getElementById("btnShipBulkDelete").addEventListener("click", async ()=
     await loadAll();
     renderCargoTypeTable();
     renderRegistryTable();
-    if(matrixState.shipId && ids.includes(matrixState.shipId)){ matrixState.shipId=null; matrixState.configOpen=false; renderMatrixTab(); }
-    if(changeState.shipId && ids.includes(changeState.shipId)){ changeState.shipId=null; renderChangeTab(); }
+    if(matrixState.shipId && ids.includes(matrixState.shipId)){ matrixState.shipId=null; matrixState.configOpen=false; changeState.selected.clear(); renderMatrixTab(); }
     notify(`已刪除 ${ids.length} 艘船`);
     logAction("批次刪除船舶", `${operator}：刪除 ${names}`);
   }catch(e){ notify("批次刪除失敗："+e.message,"err"); }
@@ -2310,7 +2485,6 @@ document.getElementById("shipDisplaySeg").addEventListener("click", async e=>{
     document.querySelectorAll("#shipDisplaySeg button").forEach(b=> b.classList.toggle("on", b.dataset.v===mode));
     renderCargoTypeTable();
     if(matrixState.shipId){ renderMatrixTab(); }
-    if(changeState.shipId){ renderChangeTab(); }
     notify("已更新船名顯示方式");
     logAction("修改船名顯示方式", mode==="code"?"代碼":mode==="name_en"?"英文船名":"中文船名");
   }catch(e){ notify("儲存失敗："+e.message,"err"); }
@@ -2377,7 +2551,7 @@ document.getElementById("btnChangePassword").addEventListener("click", changeRun
    ════════════════════════════════════════════════════════ */
 (async function init(){
   await loadAll();
-  renderRoster();
+  renderMatrixTab();
   purgeOldLogs();
 })();
 </script>
