@@ -606,6 +606,10 @@ table.matrix tr.yellow td{background:var(--yellow)}
 </div>
 
 <div id="toast"></div>
+<div id="personExportMenu" class="personexport-menu" style="display:none">
+  <div class="exportmenu-item" onclick="runPersonExport('pdf')">📄 PDF</div>
+  <div class="exportmenu-item" onclick="runPersonExport('xlsx')">📊 Excel</div>
+</div>
 
 <script>
 /* ════════════════════════════════════════════════════════
@@ -1152,7 +1156,7 @@ function renderRoster(){
       <td data-label="上船日/下船日" class="mono">${cur? disp(cur.sign_on) : (last? disp(last.sign_off||last.sign_on) : "—")}</td>
       <td data-label="航次" class="mono">${p.voyages.length}</td>
       <td data-label="海勤(年)" class="mono">${yrs.toFixed(1)}</td>
-      <td data-label="" style="white-space:nowrap"><button class="btn sm" onclick="openPersonEdit('${p.id}')">檢視/編輯</button> <button class="btn sm" title="匯出這個人的 Crew Matrix" onclick="exportPersonMatrix('${p.id}')">📊 Matrix</button></td>
+      <td data-label="" style="white-space:nowrap"><button class="btn sm" onclick="openPersonEdit('${p.id}')">檢視/編輯</button> <button class="btn sm person-export-btn" title="匯出這個人的 Crew Matrix" onclick="openPersonExportMenu(event,'${p.id}')">📊 Matrix</button></td>
     </tr>`).join("");
 }
 function populateAdvFilterOptions(){
@@ -1561,6 +1565,30 @@ function exportPersonPDF(personId){
     notify("已開啟列印預覽，請在跳出的視窗選「另存為 PDF」");
   }catch(e){ notify("產生失敗："+e.message,"err"); }
 }
+/* ── 個人 Matrix 匯出選單：一個共用的浮動選單，跟著被點的按鈕出現，PDF／Excel 二選一 ── */
+function closePersonExportMenu(){
+  const m=document.getElementById("personExportMenu");
+  if(m) m.remove();
+}
+function openPersonExportMenu(e, personId){
+  e.stopPropagation();
+  closePersonExportMenu();
+  const btn=e.currentTarget;
+  const rect=btn.getBoundingClientRect();
+  const menu=document.createElement("div");
+  menu.id="personExportMenu";
+  menu.className="exportmenu-drop";
+  const spaceRight = window.innerWidth - rect.left;
+  const alignLeft = spaceRight >= 200;
+  menu.style.cssText=`position:fixed;display:block;z-index:500;top:${rect.bottom+4}px;${alignLeft?`left:${rect.left}px;`:`left:${Math.max(8,rect.right-200)}px;`}width:200px`;
+  menu.innerHTML=`
+    <div class="exportmenu-item" onclick="event.stopPropagation();closePersonExportMenu();exportPersonPDF('${personId}')">📄 PDF</div>
+    <div class="exportmenu-item" onclick="event.stopPropagation();closePersonExportMenu();exportPersonMatrix('${personId}')">📊 Excel</div>
+  `;
+  document.body.appendChild(menu);
+}
+document.addEventListener("click", closePersonExportMenu);
+document.addEventListener("scroll", closePersonExportMenu, true);
 
 /* ── 個人編輯視圖（整頁切換，不用彈出視窗）── */
 function openPersonEdit(personId){
@@ -1576,7 +1604,7 @@ function openPersonEdit(personId){
       <button class="btn sm ghost-on-navy" onclick="backToRosterList()">← 返回列表</button>
       <b>個人資歷 · ${esc(p.name)}</b>
       <span style="margin-left:auto;display:flex;gap:8px">
-        <button class="btn sm" onclick="exportPersonPDF('${p.id}')">📄 匯出 PDF</button>
+        <button class="btn sm person-export-btn" onclick="openPersonExportMenu(event,'${p.id}')">📊 Matrix</button>
         <button class="btn sm primary" onclick="savePersonDrawer('${p.id}')">💾 儲存</button>
       </span>
     </div>
