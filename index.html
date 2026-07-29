@@ -89,6 +89,11 @@ table.tbl tbody tr:hover>td{background:#f3f8fa}
 .compliance-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12.5px;border-bottom:1px dashed var(--line)}
 .compliance-row:last-child{border-bottom:none}
 .compliance-row .v{font-family:var(--mono)}
+.collapsible-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px;cursor:pointer;user-select:none}
+.collapsible-hd:hover{background:#fafbfc}
+.collapsible-hd .chev{transition:transform .15s;color:var(--ink-3);font-size:12px;width:12px;flex-shrink:0}
+.collapsible-hd.open .chev{transform:rotate(90deg)}
+.collapsible-body{padding:0 16px 16px}
 .flowchart{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:14px 0}
 .flowstep{background:var(--card);border:1.5px solid var(--navy-3);border-radius:8px;padding:12px 14px;font-size:12.5px;line-height:1.6;min-width:150px;max-width:190px;text-align:center;display:flex;flex-direction:column;justify-content:center}
 .flowstep b{display:block;color:var(--navy);font-size:11px;letter-spacing:1px;margin-bottom:4px}
@@ -386,89 +391,86 @@ table.matrix tr.yellow td{background:var(--yellow)}
         </div>
       </div>
 
-      <div class="panelbox" style="margin-bottom:16px">
-        <b style="font-size:15px">🔑 異動密碼設定</b>
-        <p class="hint" style="margin:8px 0">辦理異動、刪除船員／船舶時需要輸入的密碼。修改時需要先輸入管理密碼（只有管理者知道，不會顯示在畫面或資料庫裡）。</p>
-        <button class="btn sm danger" id="btnChangePassword">🔧 修改異動密碼（需管理密碼）</button>
-      </div>
-
-      <div class="panelbox" style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
-          <b style="font-size:15px">🚢 船名統一設定</b>
-          <span class="hint">匯入個人資歷表時，船名會依這裡的對應自動統一（例如「台塑真善輪」↔「FPMC C Jade」，或不同大小寫寫法）</span>
+      <div class="panelbox" style="margin-bottom:16px;padding:0">
+        <div class="collapsible-hd" onclick="toggleAdminSection('pwd')">
+          <span class="chev" id="chev-pwd">▸</span><b style="font-size:15px">🔑 異動密碼設定</b>
         </div>
-        <div class="tblwrap" style="max-height:260px">
-          <table class="tbl" id="aliasTable">
-            <thead><tr><th>原始寫法（船員表上填的）</th><th>統一為（正式船名）</th><th style="width:60px"></th></tr></thead>
-            <tbody id="aliasBody"></tbody>
-          </table>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
-          <input type="text" id="aliasNewFrom" placeholder="原始寫法，例如 FPMC C JADE" style="width:220px">
-          <span class="hint">→</span>
-          <input type="text" id="aliasNewTo" list="shipNameList" placeholder="統一為，例如 台塑真善輪" style="width:220px">
-          <datalist id="shipNameList"></datalist>
-          <button class="btn sm" id="btnAddAlias">＋ 新增對應</button>
-          <button class="btn sm danger" style="margin-left:auto" id="btnReapplyAliases">🔄 用目前的對應表，修正資料庫裡既有的航次船名</button>
+        <div id="sec-pwd" class="collapsible-body" hidden>
+          <p class="hint" style="margin:8px 0">辦理異動、刪除船員／船舶時需要輸入的密碼。修改時需要先輸入管理密碼（只有管理者知道，不會顯示在畫面或資料庫裡）。</p>
+          <button class="btn sm danger" id="btnChangePassword">🔧 修改異動密碼（需管理密碼）</button>
         </div>
       </div>
 
-      <div class="panelbox" style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-          <b style="font-size:15px">🚢 船舶啟用管理</b>
-          <span class="hint">公司船隊完整清單（含散裝輪等）。勾選「啟用」才會出現在異動作業／Crew Matrix 的船舶清單裡，之後 RightShip 需要哪艘就啟用哪艘。</span>
+      <div class="panelbox" style="margin-bottom:16px;padding:0">
+        <div class="collapsible-hd" onclick="toggleAdminSection('registry')">
+          <span class="chev" id="chev-registry">▸</span><b style="font-size:15px">🚢 船舶啟用管理</b>
+          <span class="hint">公司船隊完整清單（含散裝輪等），勾選啟用才會進入異動作業／Crew Matrix</span>
         </div>
-        <div class="tblwrap" style="max-height:320px">
-          <table class="tbl" id="registryTable">
-            <thead><tr><th style="width:70px">代碼</th><th>中文船名</th><th>英文船名</th><th style="width:110px">船型分類</th><th style="width:90px">狀態</th></tr></thead>
-            <tbody id="registryBody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="panelbox" style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-          <b style="font-size:15px">🏷 船名顯示方式</b>
-          <span class="hint">決定畫面上（下拉選單、Crew Matrix、匯出檔案）船名要顯示成哪一種，不影響資料比對邏輯</span>
-        </div>
-        <div class="segbtn" id="shipDisplaySeg">
-          <button type="button" data-v="name">中文船名</button>
-          <button type="button" data-v="code">代碼</button>
-          <button type="button" data-v="name_en">英文船名</button>
-        </div>
-        <p class="hint" style="margin-top:8px">例如：<b>中文船名</b> = 台塑康華輪　<b>代碼</b> = SE　<b>英文船名</b> = FPMC S EMERALD。缺資料的船會自動退回顯示中文船名。</p>
-      </div>
-
-      <div class="panelbox" style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-          <b style="font-size:15px">🛢 船舶船型設定</b>
-          <span class="hint">影響 Crew Matrix「Years on this type of tanker」的計算範圍，一次改完全部船，船舶頁面不再單獨調整</span>
-          <button class="btn sm primary" style="margin-left:auto" id="btnSaveCargoTypes">💾 儲存全部船型</button>
-        </div>
-        <div class="tblwrap">
-          <table class="tbl" id="cargoTypeTable">
-            <thead><tr><th>船名</th><th>化 Chem</th><th>油/化 Oil/Chem</th><th>油 Oil</th><th>氣體 Gas</th></tr></thead>
-            <tbody id="cargoTypeBody"></tbody>
-          </table>
+        <div id="sec-registry" class="collapsible-body" hidden>
+          <div class="tblwrap" style="max-height:320px">
+            <table class="tbl" id="registryTable">
+              <thead><tr><th style="width:70px">代碼</th><th>中文船名</th><th>英文船名</th><th style="width:110px">船型分類</th><th style="width:90px">狀態</th></tr></thead>
+              <tbody id="registryBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <div class="panelbox">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-          <b style="font-size:15px">操作紀錄</b>
+      <div class="panelbox" style="margin-bottom:16px;padding:0">
+        <div class="collapsible-hd" onclick="toggleAdminSection('displaymode')">
+          <span class="chev" id="chev-displaymode">▸</span><b style="font-size:15px">🏷 船名顯示方式</b>
+          <span class="hint">決定畫面上船名要顯示成中文／代碼／英文</span>
+        </div>
+        <div id="sec-displaymode" class="collapsible-body" hidden>
+          <div class="segbtn" id="shipDisplaySeg">
+            <button type="button" data-v="name">中文船名</button>
+            <button type="button" data-v="code">代碼</button>
+            <button type="button" data-v="name_en">英文船名</button>
+          </div>
+          <p class="hint" style="margin-top:8px">例如：<b>中文船名</b> = 台塑康華輪　<b>代碼</b> = SE　<b>英文船名</b> = FPMC S EMERALD。缺資料的船會自動退回顯示中文船名。</p>
+        </div>
+      </div>
+
+      <div class="panelbox" style="margin-bottom:16px;padding:0">
+        <div class="collapsible-hd" onclick="toggleAdminSection('cargo')">
+          <span class="chev" id="chev-cargo">▸</span><b style="font-size:15px">🛢 船舶船型設定</b>
+          <span class="hint">影響 Crew Matrix「Years on this type of tanker」的計算範圍</span>
+        </div>
+        <div id="sec-cargo" class="collapsible-body" hidden>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+            <span id="shipBulkDeleteBar" style="display:none;align-items:center;gap:8px">
+              <span class="tag red" id="shipBulkSelCount"></span>
+              <button class="btn sm danger" id="btnShipBulkDelete">🗑 刪除已選船舶</button>
+            </span>
+            <button class="btn sm primary" style="margin-left:auto" id="btnSaveCargoTypes">💾 儲存全部船型</button>
+          </div>
+          <div class="tblwrap">
+            <table class="tbl" id="cargoTypeTable">
+              <thead><tr><th style="width:34px"><input type="checkbox" id="shipSelectAll"></th><th>船名</th><th>化 Chem</th><th>油/化 Oil/Chem</th><th>油 Oil</th><th>氣體 Gas</th></tr></thead>
+              <tbody id="cargoTypeBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="panelbox" style="padding:0">
+        <div class="collapsible-hd" onclick="toggleAdminSection('log')">
+          <span class="chev" id="chev-log">▸</span><b style="font-size:15px">操作紀錄</b>
           <span class="hint">保留最近 30 天，超過的紀錄會自動清除</span>
-          <span style="margin-left:auto;display:flex;gap:8px">
-            <button class="btn sm" id="btnAdminRefreshLog">🔄 重新整理</button>
-          </span>
         </div>
-        <div class="tblwrap">
-          <table class="tbl" id="adminLogTable">
-            <thead><tr><th style="width:150px">時間</th><th style="width:100px">操作者</th><th style="width:130px">動作</th><th>內容</th></tr></thead>
-            <tbody id="adminLogBody"><tr><td colspan="4" class="hint" style="text-align:center;padding:20px">載入中…</td></tr></tbody>
-          </table>
+        <div id="sec-log" class="collapsible-body" hidden>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+            <button class="btn sm" id="btnAdminRefreshLog">🔄 重新整理</button>
+          </div>
+          <div class="tblwrap">
+            <table class="tbl" id="adminLogTable">
+              <thead><tr><th style="width:150px">時間</th><th style="width:100px">操作者</th><th style="width:130px">動作</th><th>內容</th></tr></thead>
+              <tbody id="adminLogBody"><tr><td colspan="4" class="hint" style="text-align:center;padding:20px">載入中…</td></tr></tbody>
+            </table>
+          </div>
+          <p class="hint" style="margin-top:10px">這個網站沒有帳號登入系統，操作紀錄裡的「操作者」是每人每天第一次做異動/刪除/匯入時自行輸入的姓名，僅供追蹤參考，並非強制身份驗證。</p>
         </div>
       </div>
-      <p class="hint" style="margin-top:10px">這個網站沒有帳號登入系統，操作紀錄裡的「操作者」是每人每天第一次做異動/刪除/匯入時自行輸入的姓名，僅供追蹤參考，並非強制身份驗證。</p>
     </section>
 
   </div>
@@ -504,6 +506,32 @@ async function sb(method, table, {query="", body=null, prefer="return=representa
   if(res.status===204) return null;
   const txt = await res.text();
   return txt ? JSON.parse(txt) : null;
+}
+/* Supabase/PostgREST 預設一次最多回傳 1000 筆，資料量一大（例如上千人的航次紀錄）
+   會被悄悄截斷，畫面上看起來像是「這個人資料是空的」。這裡用 Range 分頁把整張表撈完。 */
+async function sbAll(table, query=""){
+  const PAGE=1000;
+  let all=[], from=0;
+  while(true){
+    const res=await fetch(`${CLOUD.url}/rest/v1/${table}${query}`, {
+      headers:{
+        "apikey": CLOUD.key,
+        "Authorization": "Bearer "+CLOUD.key,
+        "Range-Unit": "items",
+        "Range": `${from}-${from+PAGE-1}`,
+      }
+    });
+    if(!res.ok){
+      const t=await res.text().catch(()=> "");
+      throw new Error(`GET ${table} 失敗 (${res.status}): ${t.slice(0,200)}`);
+    }
+    const txt=await res.text();
+    const batch=txt? JSON.parse(txt) : [];
+    all=all.concat(batch);
+    if(batch.length<PAGE) break;
+    from+=PAGE;
+  }
+  return all;
 }
 
 /* ════════════════════════════════════════════════════════
@@ -637,29 +665,25 @@ function toISO(v){
 }
 
 /* ── 全域狀態 ── */
-const State={ persons:new Map(), ships:[], shipAliases:new Map(), shipRegistry:[] };
-let aliasRawByKey=new Map();
-/* 船名統一用這個排序：中文筆畫順序＋數字自然排序（27,28...36 不會被拆成字元逐一比較），
+const State={ persons:new Map(), ships:[], shipRegistry:[] };
+/* 船名排序用：中文筆畫順序＋數字自然排序（27,28...36 不會被拆成字元逐一比較），
    順序固定不會因為新增/選擇而跳動。找不到 zh stroke collator 的環境會退回一般排序。 */
 let _zhCollator;
 try{ _zhCollator=new Intl.Collator("zh-Hant-u-co-stroke",{numeric:true}); }
 catch(e){ _zhCollator={compare:(a,b)=>String(a).localeCompare(String(b),"zh-Hant",{numeric:true})}; }
 function sortShipsByName(list){ return [...list].sort((a,b)=>_zhCollator.compare(a.name,b.name)); }
 function sortNamesZh(list){ return [...list].sort((a,b)=>_zhCollator.compare(a,b)); }
-/* ── 船名統一：normKey 相同視為同一艘船 ──
-   1) 先比對現有船舶清單（crew_ships.name），大小寫/前後空白不同也算同一艘 → 自動修正成船舶登記的正式名稱
-   2) 再查 crew_ship_aliases 對應表（例如中文對英文）
-   3) 都查不到就維持原樣，並在匯入結果裡列出來提醒設定對應 */
+/* 船名只做最基本的自動修正：跟現有船舶清單比對，大小寫/前後空白不同也算同一艘 →
+   自動修正成船舶登記的正式名稱。查不到就照船員表上原本填的樣子存，
+   不會因為船名對不上就不匯入——所有航次資料都會照樣存進去、照樣計入年資。 */
 function normKey(s){ return String(s||"").trim().toUpperCase().replace(/\s+/g," "); }
 function normalizeShipName(raw){
   if(!raw) return raw;
   const k=normKey(raw);
   const known=State.ships.find(s=>normKey(s.name)===k);
-  if(known) return known.name;
-  const alias=State.shipAliases.get(k);
-  if(alias) return alias;
-  return raw;
+  return known ? known.name : raw;
 }
+
 
 /* ── Toast ── */
 let toastTimer=null;
@@ -676,13 +700,12 @@ function notify(msg, tone="ok"){
 async function loadAll(){
   document.getElementById("cloudState").textContent="☁ 載入中…";
   try{
-    const [persons, voyages, ships, posts, aliases, registry] = await Promise.all([
-      sb("GET","crew_persons",{query:"?select=*"}),
-      sb("GET","crew_voyages",{query:"?select=*"}),
-      sb("GET","crew_ships",{query:"?select=*"}),
-      sb("GET","crew_ship_posts",{query:"?select=*&order=sort_order"}),
-      sb("GET","crew_ship_aliases",{query:"?select=*"}).catch(()=>[]),
-      sb("GET","crew_ship_registry",{query:"?select=*&order=code"}).catch(()=>[]),
+    const [persons, voyages, ships, posts, registry] = await Promise.all([
+      sbAll("crew_persons","?select=*"),
+      sbAll("crew_voyages","?select=*"),
+      sbAll("crew_ships","?select=*"),
+      sbAll("crew_ship_posts","?select=*&order=sort_order"),
+      sbAll("crew_ship_registry","?select=*&order=code").catch(()=>[]),
     ]);
     State.persons=new Map();
     for(const p of persons) State.persons.set(p.id, {...p, voyages:[]});
@@ -692,8 +715,6 @@ async function loadAll(){
     }
     for(const p of State.persons.values()) p.voyages.sort((a,b)=> (a.sign_on||"").localeCompare(b.sign_on||""));
     State.ships = ships.map(s=> ({...s, posts: posts.filter(po=>po.ship_id===s.id)}));
-    State.shipAliases = new Map((aliases||[]).map(a=>[a.norm_key, a.canonical]));
-    aliasRawByKey = new Map((aliases||[]).map(a=>[a.norm_key, a.alias]));
     State.shipRegistry = registry||[];
     document.getElementById("cloudState").textContent="☁ 已連線";
     renderStats();
@@ -1084,9 +1105,9 @@ async function importFiles(fileList){
     const box=document.getElementById("importUnmappedBox");
     box.style.display="";
     box.innerHTML = `<div class="panelbox" style="border-color:var(--warn)">
-      <b style="color:#a97a10">⚠ ${allUnmapped.size} 個船名在資料庫裡找不到對應船舶</b>
+      <b style="color:#a97a10">ℹ ${allUnmapped.size} 個船名不在目前已啟用的船舶清單裡</b>
       <button class="btn sm" style="float:right" onclick="document.getElementById('importUnmappedBox').style.display='none'">關閉</button>
-      <p class="hint" style="margin:6px 0">以下船名跟現有船舶清單、船名對應表都對不上，可能是新船、或寫法不一致。去「資料管理」分頁的「船名統一設定」新增對應即可：</p>
+      <p class="hint" style="margin:6px 0">單純提醒，<b>資料照樣已經匯入、照樣計入年資</b>，不影響 Crew Matrix 計算。常見情況是這位船員曾在別家公司或還沒啟用的船上服務過：</p>
       <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.9">${[...allUnmapped].map(n=>`<li>${esc(n)}</li>`).join("")}</ul>
     </div>`;
   }
@@ -1375,8 +1396,14 @@ function renderPostboard(ship){
       <div class="lbl">${esc(po.post_label)}</div>
       <div class="name">${person? esc(person.name) : '<span style="color:#9aa8b3;font-weight:600">（缺配）</span>'}</div>
       ${statusHtml}
+      ${person? `<div style="margin-top:6px"><span class="hint" style="text-decoration:underline;cursor:pointer" onclick="event.stopPropagation();goToPersonEdit('${person.id}')">👤 查看個人資歷</span></div>` : ""}
     </button>`;
   }).join("");
+}
+function goToPersonEdit(personId){
+  showTab("roster");
+  openPersonEdit(personId);
+  closeMobileSidebar();
 }
 function selectPost(postId){
   changeState.postId=postId;
@@ -1400,7 +1427,7 @@ function renderChangeCard(ship){
       <div class="changebox">
         <div class="hd">下船 SIGN-OFF</div>
         ${offPerson? `
-          <div style="font-size:17px;font-weight:800">${esc(offPerson.name)}</div>
+          <div style="font-size:17px;font-weight:800">${esc(offPerson.name)} <span class="hint" style="font-size:12px;font-weight:600;text-decoration:underline;cursor:pointer" onclick="goToPersonEdit('${offPerson.id}')">👤 個人資歷</span></div>
           ${onboardVoy
             ? `<div class="hint">在船中：${esc(onboardVoy.ship_name)}，${disp(onboardVoy.sign_on)} 上船（${dayDiff(onboardVoy.sign_on, todayISO())} 天）<br>將把下船日填為右方日期。</div>`
             : `<div class="hint" style="color:var(--bad)">個人檔中找不到「在船中」航次，只會解除職位、不改資歷。</div>`}
@@ -1888,10 +1915,16 @@ async function deleteShip(shipId){
 /* ════════════════════════════════════════════════════════
    Tab 5：資料管理
    ════════════════════════════════════════════════════════ */
+function toggleAdminSection(id){
+  const body=document.getElementById("sec-"+id);
+  const hd=document.getElementById("chev-"+id).closest(".collapsible-hd");
+  const open=body.hidden;
+  body.hidden=!open;
+  hd.classList.toggle("open", open);
+}
 async function renderAdminTab(){
   document.getElementById("adminStats").textContent =
     `船員 ${State.persons.size} 人（在船 ${[...State.persons.values()].filter(p=>p.voyages.some(v=>!v.sign_off)).length} 人）・船舶 ${State.ships.length} 艘・今日 ${disp(todayISO())}`;
-  renderAliasTable();
   renderCargoTypeTable();
   renderRegistryTable();
   document.querySelectorAll("#shipDisplaySeg button").forEach(b=> b.classList.toggle("on", b.dataset.v===SHIP_DISPLAY_MODE));
@@ -1912,74 +1945,51 @@ async function renderAdminTab(){
     body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px;color:var(--bad)">操作紀錄讀取失敗：${esc(e.message)}</td></tr>`;
   }
 }
-function renderAliasTable(){
-  const body=document.getElementById("aliasBody");
-  const rows=[...State.shipAliases.entries()];
-  body.innerHTML = rows.length
-    ? rows.map(([k,canon])=>{
-        const original=aliasRawByKey.get(k)||k;
-        return `<tr><td>${esc(original)}</td><td>${esc(canon)}</td><td><button class="btn sm danger" onclick="deleteAlias('${esc(k)}')">✕</button></td></tr>`;
-      }).join("")
-    : `<tr><td colspan="3" class="hint" style="text-align:center;padding:14px">目前沒有設定任何船名對應</td></tr>`;
-  document.getElementById("shipNameList").innerHTML = sortShipsByName(State.ships).map(s=>`<option value="${esc(s.name)}">`).join("");
-}
-document.getElementById("btnAddAlias").addEventListener("click", async ()=>{
-  const from=document.getElementById("aliasNewFrom").value.trim();
-  const to=document.getElementById("aliasNewTo").value.trim();
-  if(!from || !to){ notify("原始寫法、統一為都要填","err"); return; }
-  const k=normKey(from);
-  try{
-    aliasRawByKey.set(k, from);
-    await sb("POST","crew_ship_aliases",{query:"?on_conflict=norm_key", body:[{norm_key:k, alias:from, canonical:to}], prefer:"resolution=merge-duplicates,return=minimal"});
-    State.shipAliases.set(k, to);
-    document.getElementById("aliasNewFrom").value="";
-    document.getElementById("aliasNewTo").value="";
-    renderAliasTable();
-    notify("已新增船名對應");
-    logAction("新增船名對應", `${from} → ${to}`);
-  }catch(e){ notify("新增失敗："+e.message,"err"); }
-});
-async function deleteAlias(k){
-  if(!confirm("確定要刪除這個船名對應？")) return;
-  try{
-    await sb("DELETE","crew_ship_aliases",{query:`?norm_key=eq.${encodeURIComponent(k)}`, prefer:"return=minimal"});
-    State.shipAliases.delete(k);
-    renderAliasTable();
-    notify("已刪除");
-  }catch(e){ notify("刪除失敗："+e.message,"err"); }
-}
-document.getElementById("btnReapplyAliases").addEventListener("click", async ()=>{
-  const operator=requireChangeAuth();
-  if(!operator) return;
-  if(!confirm("會依目前的船名對應表，檢查資料庫裡所有船員的航次紀錄，把船名不一致的地方統一修正。確定要執行嗎？")) return;
-  try{
-    const voyages=await sb("GET","crew_voyages",{query:"?select=id,ship_name"});
-    let changed=0;
-    for(const v of voyages){
-      const norm=normalizeShipName(v.ship_name);
-      if(norm && norm!==v.ship_name){
-        await sb("PATCH","crew_voyages",{query:`?id=eq.${v.id}`, body:{ship_name:norm}, prefer:"return=minimal"});
-        changed++;
-      }
-    }
-    await loadAll();
-    notify(`修正完成，共更新 ${changed} 筆航次的船名`);
-    logAction("重新套用船名對應", `${operator}：更新 ${changed} 筆航次`);
-  }catch(e){ notify("執行失敗："+e.message,"err"); }
-});
 
 /* ── 船舶船型設定：一次列出所有船統一調整 ── */
 function renderCargoTypeTable(){
   const body=document.getElementById("cargoTypeBody");
   if(!body) return;
   const ships=sortShipsByName(State.ships);
+  document.getElementById("shipSelectAll").checked=false;
+  updateShipBulkDeleteBar();
   body.innerHTML = ships.length
     ? ships.map(s=>`<tr data-ship="${s.id}">
+        <td><input type="checkbox" class="ship-chk" value="${s.id}" onchange="updateShipBulkDeleteBar()"></td>
         <td><b>${esc(shipLabel(s))}</b></td>
         ${["Chem","Oil/Chem","Oil","Gas"].map(t=>`<td style="text-align:center"><input type="checkbox" class="cargo-chk" data-ship="${s.id}" value="${t}" ${(s.cargo_types||[]).includes(t)?"checked":""}></td>`).join("")}
       </tr>`).join("")
-    : `<tr><td colspan="5" class="hint" style="text-align:center;padding:14px">目前沒有船舶資料</td></tr>`;
+    : `<tr><td colspan="6" class="hint" style="text-align:center;padding:14px">目前沒有船舶資料</td></tr>`;
 }
+function updateShipBulkDeleteBar(){
+  const n=document.querySelectorAll(".ship-chk:checked").length;
+  const bar=document.getElementById("shipBulkDeleteBar");
+  bar.style.display = n>0 ? "flex" : "none";
+  if(n>0) document.getElementById("shipBulkSelCount").textContent = `已選 ${n} 艘`;
+}
+document.getElementById("shipSelectAll").addEventListener("change", e=>{
+  document.querySelectorAll(".ship-chk").forEach(c=> c.checked = e.target.checked);
+  updateShipBulkDeleteBar();
+});
+document.getElementById("btnShipBulkDelete").addEventListener("click", async ()=>{
+  const ids=[...document.querySelectorAll(".ship-chk:checked")].map(c=>c.value);
+  if(!ids.length) return;
+  const names=ids.map(id=>{ const s=State.ships.find(x=>x.id===id); return s? shipLabel(s) : id; }).join("、");
+  const operator=requireChangeAuth();
+  if(!operator) return;
+  if(!confirm(`確定要刪除以下 ${ids.length} 艘船（含所有職位設定）？此動作無法復原：\n${names}`)) return;
+  try{
+    const inList=ids.map(id=>`"${id}"`).join(",");
+    await sb("DELETE","crew_ships",{query:`?id=in.(${inList})`, prefer:"return=minimal"});
+    await loadAll();
+    renderCargoTypeTable();
+    renderRegistryTable();
+    if(matrixState.shipId && ids.includes(matrixState.shipId)){ matrixState.shipId=null; matrixState.configOpen=false; renderMatrixTab(); }
+    if(changeState.shipId && ids.includes(changeState.shipId)){ changeState.shipId=null; renderChangeTab(); }
+    notify(`已刪除 ${ids.length} 艘船`);
+    logAction("批次刪除船舶", `${operator}：刪除 ${names}`);
+  }catch(e){ notify("批次刪除失敗："+e.message,"err"); }
+});
 document.getElementById("shipDisplaySeg").addEventListener("click", async e=>{
   const btn=e.target.closest("button"); if(!btn) return;
   const mode=btn.dataset.v;
