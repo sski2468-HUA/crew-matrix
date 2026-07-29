@@ -94,6 +94,10 @@ table.tbl tbody tr:hover>td{background:#f3f8fa}
 .collapsible-hd .chev{transition:transform .15s;color:var(--ink-3);font-size:12px;width:12px;flex-shrink:0}
 .collapsible-hd.open .chev{transform:rotate(90deg)}
 .collapsible-body{padding:0 16px 16px}
+table.tbl th.sortable{cursor:pointer;user-select:none}
+table.tbl th.sortable:hover{background:var(--navy-2)}
+table.tbl th.sortable .sortarrow{margin-left:4px;font-size:10px;opacity:.6}
+table.tbl th.sortable.sorted .sortarrow{opacity:1;color:var(--signal)}
 .flowchart{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:14px 0}
 .flowstep{background:var(--card);border:1.5px solid var(--navy-3);border-radius:8px;padding:12px 14px;font-size:12.5px;line-height:1.6;min-width:150px;max-width:190px;text-align:center;display:flex;flex-direction:column;justify-content:center}
 .flowstep b{display:block;color:var(--navy);font-size:11px;letter-spacing:1px;margin-bottom:4px}
@@ -203,55 +207,78 @@ table.matrix tr.yellow td{background:var(--yellow)}
     <!-- ═══════ Tab 1：船員資料庫 ═══════ -->
     <section id="tab-roster" class="tab-panel">
       <div id="rosterListView">
-        <div class="dropzone" id="dropzone" style="margin-bottom:16px">
-          <div class="icon">📂</div>
-          <div class="txt" style="flex:1">
-            <b>把個人資歷表拖進來（可一次全選上百個檔案）</b>
-            <span class="hint">支援 .xls / .xlsx，格式為「海上資歷 Service experience」表。同名船員將以新檔覆蓋既有資料。</span>
-          </div>
-          <button class="btn dark" id="btnPickFile">選擇檔案</button>
-          <button class="btn sm" id="btnDownloadTemplate">📄 下載空白範本</button>
-          <input type="file" id="fileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
-        </div>
-        <div id="importFailBox" style="display:none;margin-bottom:16px"></div>
-        <div id="importUnmappedBox" style="display:none;margin-bottom:16px"></div>
-
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <input type="text" id="rosterSearch" placeholder="搜尋姓名 / 英文名 / 職級 / 勞務公司" style="width:260px">
-          <div class="segbtn" id="rosterStatusSeg">
-            <button type="button" class="on" data-v="">全部</button>
-            <button type="button" data-v="on">在船</button>
-            <button type="button" data-v="off">休假</button>
-          </div>
-          <button class="btn sm" id="btnToggleAdvFilter">🔎 進階篩選</button>
-          <span class="hint" id="rosterCount"></span>
-          <span id="bulkDeleteBar" style="display:none;align-items:center;gap:8px">
-            <span class="tag red" id="bulkSelCount"></span>
-            <button class="btn sm danger" id="btnBulkDelete">🗑 刪除已選船員</button>
-          </span>
-          <span style="margin-left:auto;display:flex;gap:8px">
-            <button class="btn sm" id="btnAddPerson">＋ 新增船員</button>
-            <button class="btn sm" id="btnExportBackup">⬇ 匯出備份</button>
-          </span>
-        </div>
-        <div class="panelbox" id="advFilterBox" style="display:none;margin-bottom:12px">
-          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
-            <label class="field">現職<select id="filterRank" style="min-width:130px"><option value="">（全部）</option></select></label>
-            <label class="field">目前/最後船名<select id="filterShip" style="min-width:150px"><option value="">（全部）</option></select></label>
-            <label class="field">勞務公司<select id="filterManning" style="min-width:130px"><option value="">（全部）</option></select></label>
-            <button class="btn sm" id="btnClearAdvFilter">清除篩選</button>
-          </div>
+        <div class="segbtn" id="rosterSubSeg" style="margin-bottom:14px">
+          <button type="button" class="on" data-v="list">① 船員資料清單</button>
+          <button type="button" data-v="upload">② 資歷上傳／填單連結</button>
         </div>
 
-        <div class="tblwrap">
-          <table class="tbl" id="rosterTable">
-            <thead><tr>
-              <th style="width:34px"><input type="checkbox" id="rosterSelectAll"></th>
-              <th>姓名</th><th>現職</th><th>狀態</th><th>目前/最後船名</th>
-              <th>上船日/下船日</th><th>航次</th><th>海勤(年)</th><th></th>
-            </tr></thead>
-            <tbody id="rosterBody"></tbody>
-          </table>
+        <div id="rosterSubUpload" hidden>
+          <div class="dropzone" id="dropzone" style="margin-bottom:16px">
+            <div class="icon">📂</div>
+            <div class="txt" style="flex:1">
+              <b>把個人資歷表拖進來（可一次全選上百個檔案）</b>
+              <span class="hint">支援 .xls / .xlsx，格式為「海上資歷 Service experience」表。同名船員將以新檔覆蓋既有資料。</span>
+            </div>
+            <button class="btn dark" id="btnPickFile">選擇檔案</button>
+            <button class="btn sm" id="btnDownloadTemplate">📄 下載空白範本</button>
+            <input type="file" id="fileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
+          </div>
+          <div class="panelbox" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div>
+              <b style="font-size:13.5px">📱 手機填單連結</b>
+              <div class="hint" style="margin-top:2px">給不方便用 Excel 的船員自行填寫海上資歷，送出後要在「資料管理 → 網路填單審核」核准才會正式匯入</div>
+            </div>
+            <code id="submitLinkText" class="mono" style="margin-left:auto;background:#f3f6f7;padding:6px 10px;border-radius:5px;font-size:12px;color:var(--ink-2)"></code>
+            <button class="btn sm primary" id="btnCopySubmitLink">🔗 複製連結</button>
+          </div>
+          <div id="importFailBox" style="display:none;margin-bottom:16px"></div>
+          <div id="importUnmappedBox" style="display:none;margin-bottom:16px"></div>
+        </div>
+
+        <div id="rosterSubList">
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+            <input type="text" id="rosterSearch" placeholder="搜尋姓名 / 英文名 / 職級 / 勞務公司" style="width:260px">
+            <div class="segbtn" id="rosterStatusSeg">
+              <button type="button" class="on" data-v="">全部</button>
+              <button type="button" data-v="on">在船</button>
+              <button type="button" data-v="off">休假</button>
+            </div>
+            <button class="btn sm" id="btnToggleAdvFilter">🔎 進階篩選</button>
+            <span class="hint" id="rosterCount"></span>
+            <span id="bulkDeleteBar" style="display:none;align-items:center;gap:8px">
+              <span class="tag red" id="bulkSelCount"></span>
+              <button class="btn sm danger" id="btnBulkDelete">🗑 刪除已選船員</button>
+            </span>
+            <span style="margin-left:auto;display:flex;gap:8px">
+              <button class="btn sm" id="btnAddPerson">＋ 新增船員</button>
+              <button class="btn sm" id="btnExportBackup">⬇ 匯出備份</button>
+            </span>
+          </div>
+          <div class="panelbox" id="advFilterBox" style="display:none;margin-bottom:12px">
+            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+              <label class="field">現職<select id="filterRank" style="min-width:130px"><option value="">（全部）</option></select></label>
+              <label class="field">目前/最後船名<select id="filterShip" style="min-width:150px"><option value="">（全部）</option></select></label>
+              <label class="field">勞務公司<select id="filterManning" style="min-width:130px"><option value="">（全部）</option></select></label>
+              <button class="btn sm" id="btnClearAdvFilter">清除篩選</button>
+            </div>
+          </div>
+
+          <div class="tblwrap">
+            <table class="tbl" id="rosterTable">
+              <thead><tr>
+                <th style="width:34px"><input type="checkbox" id="rosterSelectAll"></th>
+                <th class="sortable" data-sort="name">姓名<span class="sortarrow"></span></th>
+                <th class="sortable" data-sort="rank">現職<span class="sortarrow"></span></th>
+                <th class="sortable" data-sort="status">狀態<span class="sortarrow"></span></th>
+                <th class="sortable" data-sort="ship">目前/最後船名<span class="sortarrow"></span></th>
+                <th class="sortable" data-sort="date">上船日/下船日<span class="sortarrow"></span></th>
+                <th class="sortable" data-sort="voy">航次<span class="sortarrow"></span></th>
+                <th class="sortable" data-sort="yrs">海勤(年)<span class="sortarrow"></span></th>
+                <th></th>
+              </tr></thead>
+              <tbody id="rosterBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -281,6 +308,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
           <button class="btn sm" id="btnImportShips">📥 匯入船舶配置</button>
           <button class="btn sm" id="btnShipConfig">⚙ 船舶／職位設定</button>
           <button class="btn sm" id="btnExportShipCheck">📧 匯出船上核對用檔案</button>
+          <button class="btn sm" id="btnExportShipCheckPDF">📄 匯出 PDF（船上核對用）</button>
           <button class="btn sm primary" id="btnExportMatrix">⬇ 匯出 Excel</button>
         </span>
         <input type="file" id="shipFileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
@@ -353,9 +381,31 @@ table.matrix tr.yellow td{background:var(--yellow)}
           <li><b>Watchkeeper on this ship 怎麼判斷</b>——系統自動規則：船長、輪機長算「No」，其餘職位（大副／二副／三副／大管／二管／三管）都算「Yes」。如果實際狀況不同，匯出後手動改這一格即可。</li>
           <li><b>Date joined this vessel 是什麼</b>——這欄跟 Crew Matrix 表格裡的「Months on vessel this tour of duty」算的是同一件事，但 OCIMF 網頁要的是實際日期（例如 23 Feb 2026）不是月數，系統會自動換算成日期格式輸出。</li>
           <li><b>匯出船上核對用檔案</b>——更新完成後要寄給船上核對時用這個。會產生一個 Excel，第一頁是 Crew Matrix 總表，後面每一頁是該船目前每位在船船員的完整海上資歷（跟原本個人資歷表同樣的欄位、同樣的順序），船上人員可以直接核對自己完整的航次紀錄，不是只看到一個年資合計數字。<span class="hint">目前缺配的職位不會產生分頁；因為用的是免費版試算表工具，格式是純資料表格（沒有原本黃底、合併儲存格那些美化），但內容、順序完全一致。</span></li>
+          <li><b>匯出 PDF（船上核對用）</b>——跟上面那個 Excel 內容一樣（總表＋每位在船人員完整資歷），但如果船上要的是 PDF 檔（例如列印張貼、或不方便開 Excel），用這個。點下去會開一個新分頁排版好的頁面，並自動跳出瀏覽器的「列印」視窗，把「印表機」選成<b>「另存為 PDF」</b>存下來即可；如果沒有自動跳出，畫面右上角有一顆「🖨 列印／另存為 PDF」按鈕可以手動點。</li>
           <li><b>船舶／職位設定</b>——可修改船名、本船船型（影響 Years on this type of tanker 的計算），以及每個職位欄要用哪個「年資職級」計算、目前指派給誰、新增或刪除職位欄。<b style="color:var(--bad)">刪除船舶需要密碼。</b></li>
           <li><b>匯入船舶配置</b>——如果拿到新船的整艘船 Crew Matrix 總表（跟舊系統格式一樣），可以直接匯入，系統會自動讀出船名與職位結構、建立好船舶與職位欄，並依姓名自動比對船員資料庫、配對到的職位直接指派好人（配不到的需手動指派）。<span class="hint">本船船型會先預設為 Chem + Oil/Chem，請匯入後務必到「船舶／職位設定」核對修正，尤其是氣體船或船型不同的船舶。已存在同名船舶時會自動略過，不會覆蓋現有資料。</span></li>
         </ol>
+      </div>
+
+      <div class="panelbox" style="margin-bottom:16px">
+        <b style="font-size:15px">📐 Crew Matrix 各欄位計算公式</b>
+        <p class="hint" style="margin:8px 0">「今天」一律指系統當下的日期；「該職級」指這一欄職位設定的年資職級（例如 3/O(2) 欄雖然職位名稱不同，年資職級一樣是算 3/O）。</p>
+        <table class="tbl">
+          <thead><tr><th style="width:230px">欄位</th><th>公式／判斷方式</th></tr></thead>
+          <tbody>
+            <tr><td class="label">Years with Operator</td><td>(今天 − 進公司日) ÷ 365</td></tr>
+            <tr><td class="label">Years in Rank</td><td>把這個人所有航次裡「職級＝該職級」的天數全部加總 ÷ 365（在船中的航次算到今天）</td></tr>
+            <tr><td class="label">Years on this type of tanker</td><td>同上職級範圍的天數，但只算「船型」落在<b>本船船舶／職位設定裡勾選的船型</b>（Chem／Oil-Chem／Oil／Gas）的航次 ÷ 365</td></tr>
+            <tr><td class="label">Years of watchkeeping officer</td><td>從該職級（含）以下、到最底層職級為止的天數加總 ÷ 365。甲板：C/O＋2/O＋3/O（不含 Master）；輪機：2/E＋3/E＋4/E（不含 C/E）</td></tr>
+            <tr><td class="label">Years on all types of tanker</td><td>同「Years in Rank」的職級天數，但船型只要是 Chem／Oil-Chem／Oil／Gas 其中之一都算（不含 Other），不受本船船型設定限制 ÷ 365</td></tr>
+            <tr><td class="label">Months on vessel this tour of duty</td><td>(今天 − 最近一次上船日) ÷ 30</td></tr>
+            <tr><td class="label">Administration acceptance</td><td>目前固定顯示 N/A（沒有對應的原始資料欄位）</td></tr>
+            <tr><td class="label">Watchkeeper on this ship<span class="hint">（OCIMF 匯出用）</span></td><td>職級是 CAPT.（船長）或 C/E（輪機長）→ No；其餘職級 → Yes</td></tr>
+            <tr><td class="label">Date joined this vessel<span class="hint">（OCIMF 匯出用）</span></td><td>跟「Months on vessel this tour of duty」用同一個日期（最近一次上船日），只是改成日期格式（例：23 Feb 2026）不是月數</td></tr>
+            <tr><td class="label">Radio qualification<span class="hint">（OCIMF 匯出用）</span></td><td>個人資歷裡「電台證書」欄位有填寫任何內容 → Yes；空白 → No</td></tr>
+          </tbody>
+        </table>
+        <p class="hint" style="margin-top:10px">Cadet（實習生）期間<b>不計入任何職級年資</b>；一個人可能同時出現在多筆重疊或連續航次裡，系統會逐筆航次分別計算天數再加總，不會用「進公司日到現在」這種籠統算法去推估職級年資。</p>
       </div>
 
       <div class="panelbox" style="margin-bottom:16px">
@@ -956,6 +1006,19 @@ document.getElementById("sidebarBackdrop").addEventListener("click", closeMobile
    Tab 1：船員資料庫
    ════════════════════════════════════════════════════════ */
 let rosterFilter={ status:"", rank:"", ship:"", manning:"" };
+let rosterSort={ col:null, dir:1 }; // col=null 表示用預設（在船優先→姓名）
+function rosterSortKey(r, col){
+  switch(col){
+    case "name": return r.p.name||"";
+    case "rank": return r.p.rank_now||"";
+    case "status": return r.cur? 0 : 1;
+    case "ship": return (r.cur? r.cur.ship_name : (r.last?r.last.ship_name:""))||"";
+    case "date": return r.cur? r.cur.sign_on : (r.last? (r.last.sign_off||r.last.sign_on) : "");
+    case "voy": return r.p.voyages.length;
+    case "yrs": return r.yrs;
+    default: return "";
+  }
+}
 function renderRoster(){
   const q=(document.getElementById("rosterSearch").value||"").trim().toLowerCase();
   const today=todayISO();
@@ -972,7 +1035,22 @@ function renderRoster(){
   if(rosterFilter.rank) rows=rows.filter(r=>(r.p.rank_now||"")===rosterFilter.rank);
   if(rosterFilter.manning) rows=rows.filter(r=>(r.p.manning_agency||"")===rosterFilter.manning);
   if(rosterFilter.ship) rows=rows.filter(r=> (r.cur? r.cur.ship_name : (r.last?r.last.ship_name:"")) ===rosterFilter.ship);
-  rows.sort((a,b)=> (a.cur?0:1)-(b.cur?0:1) || a.p.name.localeCompare(b.p.name,"zh-Hant"));
+  if(rosterSort.col){
+    const col=rosterSort.col, dir=rosterSort.dir;
+    rows.sort((a,b)=>{
+      const av=rosterSortKey(a,col), bv=rosterSortKey(b,col);
+      let c;
+      if(typeof av==="number" && typeof bv==="number") c=av-bv;
+      else c=String(av).localeCompare(String(bv),"zh-Hant",{numeric:true});
+      return c*dir || a.p.name.localeCompare(b.p.name,"zh-Hant");
+    });
+  }else{
+    rows.sort((a,b)=> (a.cur?0:1)-(b.cur?0:1) || a.p.name.localeCompare(b.p.name,"zh-Hant"));
+  }
+  document.querySelectorAll("#rosterTable th.sortable").forEach(th=>{
+    th.classList.toggle("sorted", th.dataset.sort===rosterSort.col);
+    th.querySelector(".sortarrow").textContent = th.dataset.sort===rosterSort.col ? (rosterSort.dir===1?"▲":"▼") : "";
+  });
   populateAdvFilterOptions();
   document.getElementById("rosterCount").textContent = rows.length+" 人";
   const body=document.getElementById("rosterBody");
@@ -1014,6 +1092,20 @@ function populateAdvFilterOptions(){
   fill("filterShip", ships, rosterFilter.ship);
   fill("filterManning", mannings, rosterFilter.manning);
 }
+document.getElementById("rosterTable").querySelector("thead").addEventListener("click", e=>{
+  const th=e.target.closest("th.sortable"); if(!th) return;
+  const col=th.dataset.sort;
+  if(rosterSort.col===col) rosterSort.dir*=-1;
+  else { rosterSort.col=col; rosterSort.dir=1; }
+  renderRoster();
+});
+document.getElementById("rosterSubSeg").addEventListener("click", e=>{
+  const btn=e.target.closest("button"); if(!btn) return;
+  document.querySelectorAll("#rosterSubSeg button").forEach(b=>b.classList.remove("on"));
+  btn.classList.add("on");
+  document.getElementById("rosterSubList").hidden = btn.dataset.v!=="list";
+  document.getElementById("rosterSubUpload").hidden = btn.dataset.v!=="upload";
+});
 document.getElementById("rosterStatusSeg").addEventListener("click", e=>{
   const btn=e.target.closest("button"); if(!btn) return;
   document.querySelectorAll("#rosterStatusSeg button").forEach(b=>b.classList.remove("on"));
@@ -1733,6 +1825,26 @@ function buildBlankPersonTemplate(){
 }
 document.getElementById("btnDownloadTemplate").addEventListener("click", buildBlankPersonTemplate);
 
+/* ── 手機填單連結：以目前網址自動推算 submit-crewform.html 的完整網址 ──
+   用 URL 相對路徑解析，比自己拼 origin+pathname 可靠——在少數瀏覽器情境下
+   location.origin 會變成字面上的字串 "null"，之前就是這樣才顯示出「nullsubmit-crewform.html」。 */
+function submitFormUrl(){
+  return new URL("submit-crewform.html", location.href).href;
+}
+(function initSubmitLink(){
+  const el = document.getElementById("submitLinkText");
+  if(el) el.textContent = submitFormUrl();
+})();
+document.getElementById("btnCopySubmitLink").addEventListener("click", async ()=>{
+  const url = submitFormUrl();
+  try{
+    await navigator.clipboard.writeText(url);
+    notify("已複製填單連結，可以傳給船員了");
+  }catch(e){
+    notify("自動複製失敗，請手動選取上面那行網址複製", "err");
+  }
+});
+
 /* ── 匯出「船上核對用」檔案：Crew Matrix 總表 + 每位在船人員完整海上資歷分頁 ──
    分頁格式比照原本「海上資歷 (Service experience)」個人表，方便船上比對紙本。
    ※ 用的是免費版 SheetJS，寫不出顏色/合併儲存格這類樣式，
@@ -1789,6 +1901,86 @@ document.getElementById("btnExportShipCheck").addEventListener("click", ()=>{
     logAction("匯出船上核對用檔案", `${shipLabel(ship)}（${cols.length-noPerson} 人有明細，${noPerson} 個職位缺配未列出）`);
     notify(`已匯出，共 ${cols.length-noPerson} 位船員的完整資歷${noPerson? `，${noPerson} 個職位目前缺配未列出`:""}`);
   }catch(e){ notify("匯出失敗："+e.message, "err"); }
+});
+
+/* ── 匯出船上核對用「PDF」──
+   不用 jsPDF 這類套件：那些套件內建字型不支援中文，中文會變空白方框，
+   要嵌入中文字型檔又會讓網站肥好幾 MB。改成組一個排版好的網頁，
+   叫瀏覽器內建的「列印 → 另存為 PDF」，中文完全正常、檔案小、文字還能反白複製。 */
+document.getElementById("btnExportShipCheckPDF").addEventListener("click", ()=>{
+  const ship=State.ships.find(s=>s.id===matrixState.shipId);
+  if(!ship) return;
+  try{
+    const cols=computeCols(ship);
+    const today=todayISO();
+    let noPerson=0;
+    const matrixRowsHtml = MATRIX_ROWS.map(k=>{
+      const cells = cols.map(c=>{
+        const v = c.vals? c.vals[k] : "";
+        return `<td>${esc(typeof v==="number"? v.toFixed(1) : (v||""))}</td>`;
+      }).join("");
+      return `<tr class="${YELLOW_ROWS.has(k)?"yellow":""}"><td class="label">${esc(k)}</td>${cells}</tr>`;
+    }).join("");
+    const personPages = cols.map(c=>{
+      const person = c.person_id? State.persons.get(c.person_id) : null;
+      if(!person){ noPerson++; return ""; }
+      const fields=[["姓名",person.name],["英文姓名",person.name_en],["勞務公司",person.manning_agency],["現職",person.rank_now],
+        ["國籍",person.nationality],["進公司日",disp(person.join_date)],["證書種類",person.coc],["發證國",person.issuing_country],
+        ["Tanker cert",person.tanker_cert],["STCW V",person.stcw],["電台證書",person.radio],["英語能力",person.english]];
+      const voyages=[...person.voyages].sort((a,b)=>(a.sign_on||"").localeCompare(b.sign_on||""));
+      const voyRows = voyages.map(v=>{
+        const days=v.sign_on? Math.max(dayDiff(v.sign_on, v.sign_off||today),0) : "";
+        return `<tr><td class="label">${esc(RANK_CN[v.rank]||v.rank||"")}</td><td class="label">${esc(v.ship_name||"")}</td>
+          <td>${disp(v.sign_on)}</td><td>${v.sign_off?disp(v.sign_off):"(在船中)"}</td><td>${days}</td><td>${(v.cargo_types||[]).join("+")}</td></tr>`;
+      }).join("") || `<tr><td colspan="6" style="color:#8195a0">目前沒有航次紀錄</td></tr>`;
+      return `<div class="person-page">
+        <h1>海上資歷 — ${esc(person.name)}（${esc(c.post_label)}）</h1>
+        <div class="meta">${esc(shipLabel(ship))}　列印日期：${disp(today)}</div>
+        <div class="person-hd">${fields.map(([k,v])=>`<div><b>${esc(k)}</b>${esc(v||"—")}</div>`).join("")}</div>
+        <table><thead><tr><th>職級</th><th>船名</th><th>上船日</th><th>下船日</th><th>天數</th><th>船型</th></tr></thead>
+        <tbody>${voyRows}</tbody></table>
+      </div>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>${esc(shipLabel(ship))}_船上核對用</title>
+    <style>
+      @page{ size: landscape; margin: 12mm; }
+      *{box-sizing:border-box}
+      body{font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;color:#15262f;font-size:11px;margin:0}
+      h1{font-size:16px;margin:0 0 4px}
+      .meta{font-size:11px;color:#52656f;margin-bottom:12px}
+      table{width:100%;border-collapse:collapse;margin-bottom:8px}
+      th,td{border:1px solid #c3ced5;padding:5px 7px;text-align:center;font-size:10px}
+      th{background:#1c3a5e;color:#fff}
+      td.label{text-align:left;font-weight:600}
+      tr.yellow td{background:#fdf3e0}
+      .person-page{page-break-before:always;padding-top:4px}
+      .person-hd{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 18px;margin-bottom:14px}
+      .person-hd div{font-size:11px;padding:2px 0}
+      .person-hd div b{display:block;color:#52656f;font-size:9px;font-weight:600}
+      .noprint{position:fixed;top:10px;right:10px}
+      @media print{ .noprint{display:none} }
+    </style></head>
+    <body>
+      <button class="noprint" onclick="window.print()" style="padding:10px 16px;font-size:14px;cursor:pointer">🖨 列印／另存為 PDF</button>
+      <h1>Crew Matrix — ${esc(shipLabel(ship))}</h1>
+      <div class="meta">列印日期：${disp(today)}</div>
+      <table>
+        <thead><tr><th style="text-align:left">Qualification of Officers</th>${cols.map(c=>`<th>${esc(c.post_label)}<br><span style="font-weight:400">${esc(c.rank)}</span></th>`).join("")}</tr></thead>
+        <tbody>${matrixRowsHtml}</tbody>
+      </table>
+      ${personPages}
+    </body></html>`;
+
+    const win = window.open("", "_blank");
+    if(!win){ notify("瀏覽器擋住了新視窗，請允許彈出視窗後再試一次","err"); return; }
+    win.document.write(html);
+    win.document.close();
+    setTimeout(()=>{ win.focus(); win.print(); }, 400);
+
+    logAction("匯出船上核對用 PDF", `${shipLabel(ship)}（${cols.length-noPerson} 人有明細）`);
+    notify(`已開啟列印預覽，請在跳出的視窗選「另存為 PDF」`);
+  }catch(e){ notify("產生失敗："+e.message, "err"); }
 });
 
 /* ── 船舶／職位設定 ── */
