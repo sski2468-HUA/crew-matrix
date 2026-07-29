@@ -310,6 +310,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
           <li><b>進階篩選</b>——點「🔎 進階篩選」展開現職、目前/最後船名、勞務公司三個下拉篩選，可以互相搭配使用；不用時收合起來，畫面比較乾淨。</li>
           <li><b>搜尋 / 檢視 / 編輯</b>——搜尋框可依姓名、英文名、職級或勞務公司篩選；點任一列右側「檢視/編輯」會切換到整頁編輯畫面（不是彈出視窗），可直接改基本資料、新增或刪除航次，改完按「返回列表」即回到名單。</li>
           <li><b>手動新增船員</b>——沒有 Excel 檔、想直接在網站上建一筆新資料時用「＋ 新增船員」，會建立一筆空白資料並直接進入編輯畫面。</li>
+          <li><b>手機填單（不用 Excel）</b>——把 <code>submit-crewform.html</code> 這個獨立網頁的連結分享給船員，手機也能直接填寫海上資歷，送出後不會馬上進資料庫，會先進「🔐 資料管理 → 📋 網路填單審核」，管理者確認內容沒問題、按「核准並匯入」才會正式生效，避免有人打錯姓名蓋掉別人的資料。</li>
           <li><b>批次刪除船員</b>——勾選要刪除的船員（表頭打勾可全選目前顯示的名單），畫面上方會出現「🗑 刪除已選船員」按鈕。<b style="color:var(--bad)">此動作需要輸入密碼，且無法復原，刪除前請再三確認。</b></li>
           <li><b>匯出備份</b>——右上角「⬇ 匯出備份」會把目前資料庫全部匯出成 Excel（船員基本資料／全部航次／船舶配置三張分頁），建議定期備份留存。</li>
         </ol>
@@ -388,6 +389,22 @@ table.matrix tr.yellow td{background:var(--yellow)}
           <span style="margin-left:auto;display:flex;gap:8px">
             <button class="btn sm primary" id="btnAdminBackup">⬇ 立即備份整個資料庫</button>
           </span>
+        </div>
+      </div>
+
+      <div class="panelbox" style="margin-bottom:16px;padding:0">
+        <div class="collapsible-hd" onclick="toggleAdminSection('submissions')">
+          <span class="chev" id="chev-submissions">▸</span><b style="font-size:15px">📋 網路填單審核</b>
+          <span class="tag red" id="submissionBadge" style="display:none"></span>
+          <span class="hint">分享 submit-crewform.html 連結給船員自行填寫，送出後在這裡審核通過才會正式匯入</span>
+        </div>
+        <div id="sec-submissions" class="collapsible-body" hidden>
+          <div class="tblwrap">
+            <table class="tbl" id="submissionTable">
+              <thead><tr><th style="width:150px">送出時間</th><th>姓名</th><th style="width:90px">航次筆數</th><th style="width:220px">審核</th></tr></thead>
+              <tbody id="submissionBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -665,7 +682,7 @@ function toISO(v){
 }
 
 /* ── 全域狀態 ── */
-const State={ persons:new Map(), ships:[], shipRegistry:[] };
+const State={ persons:new Map(), ships:[], shipRegistry:[], submissions:[] };
 /* 船名排序用：中文筆畫順序＋數字自然排序（27,28...36 不會被拆成字元逐一比較），
    順序固定不會因為新增/選擇而跳動。找不到 zh stroke collator 的環境會退回一般排序。 */
 let _zhCollator;
@@ -1031,22 +1048,32 @@ document.getElementById("rosterSelectAll").addEventListener("change", e=>{
   document.querySelectorAll(".roster-chk").forEach(c=> c.checked = e.target.checked);
   updateBulkDeleteBar();
 });
+/* Supabase/PostgREST 的網址有長度上限，一次塞幾百個 ID 進 ?id=in.(...) 會被伺服器直接拒絕。
+   批次刪除一律切成小批（每批 80 筆）依序送出，數量再多也不會失敗。 */
+function chunkArray(arr, size){
+  const out=[];
+  for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size));
+  return out;
+}
 document.getElementById("btnBulkDelete").addEventListener("click", async ()=>{
   const ids=[...document.querySelectorAll(".roster-chk:checked")].map(c=>c.value);
   if(!ids.length) return;
-  const names=ids.map(id=>State.persons.get(id)?.name || id).join("、");
+  const names=ids.map(id=>State.persons.get(id)?.name || id);
+  const namesPreview = names.length>20 ? names.slice(0,20).join("、")+`…等共 ${names.length} 人` : names.join("、");
   const operator=requireChangeAuth();
   if(!operator) return;
-  if(!confirm(`確定要刪除以下 ${ids.length} 名船員？此動作無法復原：\n${names}`)) return;
+  if(!confirm(`確定要刪除以下 ${ids.length} 名船員？此動作無法復原：\n${namesPreview}`)) return;
   try{
-    const inList = ids.map(id=>`"${id}"`).join(",");
-    await sb("DELETE","crew_voyages",{query:`?person_id=in.(${inList})`, prefer:"return=minimal"});
-    await sb("PATCH","crew_ship_posts",{query:`?person_id=in.(${inList})`, body:{person_id:null}});
-    await sb("DELETE","crew_persons",{query:`?id=in.(${inList})`, prefer:"return=minimal"});
+    for(const chunk of chunkArray(ids, 80)){
+      const inList = chunk.map(id=>`"${id}"`).join(",");
+      await sb("DELETE","crew_voyages",{query:`?person_id=in.(${inList})`, prefer:"return=minimal"});
+      await sb("PATCH","crew_ship_posts",{query:`?person_id=in.(${inList})`, body:{person_id:null}});
+      await sb("DELETE","crew_persons",{query:`?id=in.(${inList})`, prefer:"return=minimal"});
+    }
     await loadAll();
     renderRoster();
     notify(`已刪除 ${ids.length} 名船員`);
-    logAction("批次刪除船員", `${operator}：刪除 ${names}`);
+    logAction("批次刪除船員", `${operator}：刪除 ${ids.length} 人（${namesPreview}）`);
   }catch(e){ notify("批次刪除失敗："+e.message, "err"); }
 });
 
@@ -1927,6 +1954,7 @@ async function renderAdminTab(){
     `船員 ${State.persons.size} 人（在船 ${[...State.persons.values()].filter(p=>p.voyages.some(v=>!v.sign_off)).length} 人）・船舶 ${State.ships.length} 艘・今日 ${disp(todayISO())}`;
   renderCargoTypeTable();
   renderRegistryTable();
+  renderSubmissionTable();
   document.querySelectorAll("#shipDisplaySeg button").forEach(b=> b.classList.toggle("on", b.dataset.v===SHIP_DISPLAY_MODE));
   const body=document.getElementById("adminLogBody");
   body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px">載入中…</td></tr>`;
@@ -1944,6 +1972,94 @@ async function renderAdminTab(){
   }catch(e){
     body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px;color:var(--bad)">操作紀錄讀取失敗：${esc(e.message)}</td></tr>`;
   }
+}
+
+/* ── 網路填單審核 ── */
+async function renderSubmissionTable(){
+  const body=document.getElementById("submissionBody");
+  const badge=document.getElementById("submissionBadge");
+  body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px">載入中…</td></tr>`;
+  try{
+    const rows=await sbAll("crew_submissions","?select=*&status=eq.pending&order=submitted_at.desc");
+    State.submissions=rows;
+    if(!rows.length){
+      badge.style.display="none";
+      body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px">目前沒有待審核的填單</td></tr>`;
+      return;
+    }
+    badge.style.display=""; badge.textContent=`${rows.length} 筆待審`;
+    body.innerHTML=rows.map(r=>{
+      const t=new Date(r.submitted_at);
+      const tStr=`${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,"0")}:${String(t.getMinutes()).padStart(2,"0")}`;
+      const n=(r.payload&&r.payload.voyages)? r.payload.voyages.length : 0;
+      return `<tr><td class="mono">${tStr}</td><td><b>${esc(r.submitted_name||"")}</b></td><td class="mono">${n}</td>
+        <td><button class="btn sm" onclick="reviewSubmission('${r.id}')">🔍 檢視並審核</button></td></tr>`;
+    }).join("");
+  }catch(e){
+    body.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px;color:var(--bad)">讀取失敗：${esc(e.message)}（可能尚未執行 add_submissions.sql）</td></tr>`;
+  }
+}
+function reviewSubmission(id){
+  const sub=(State.submissions||[]).find(s=>s.id===id);
+  if(!sub) return;
+  const {person, voyages}=sub.payload;
+  const host=document.createElement("div");
+  host.id="submissionReviewHost";
+  host.style.cssText="position:fixed;inset:0;background:rgba(17,28,40,.5);z-index:200;display:flex;justify-content:center;align-items:flex-start;padding:30px 16px;overflow:auto";
+  const fields=[["姓名",person.name],["英文姓名",person.name_en],["勞務公司",person.manning_agency],["現職",person.rank_now],
+    ["國籍",person.nationality],["進公司日",disp(person.join_date)],["證書種類",person.coc],["發證國",person.issuing_country],
+    ["Tanker cert",person.tanker_cert],["STCW V",person.stcw],["電台證書",person.radio],["英語能力",person.english]];
+  host.innerHTML=`<div style="background:#fff;border-radius:10px;max-width:760px;width:100%;padding:22px;margin-bottom:40px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <b style="font-size:16px">填單內容 · ${esc(person.name)}</b>
+      <button class="btn sm" style="margin-left:auto" onclick="document.getElementById('submissionReviewHost').remove()">✕ 關閉</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;font-size:13px">
+      ${fields.map(([k,v])=>`<div><div class="hint" style="font-size:11px">${esc(k)}</div><div style="font-weight:600">${esc(v||"—")}</div></div>`).join("")}
+    </div>
+    <div style="margin-top:18px">
+      <b style="font-size:13px">海上資歷（${voyages.length} 筆）</b>
+      <div class="tblwrap" style="margin-top:8px;max-height:none">
+        <table class="tbl"><thead><tr><th>職級</th><th>船名</th><th>上船日</th><th>下船日</th><th>船型</th></tr></thead>
+          <tbody>${voyages.map(v=>`<tr><td>${esc(v.rank||"")}</td><td>${esc(v.ship_name)}</td><td class="mono">${disp(v.sign_on)}</td><td class="mono">${v.sign_off?disp(v.sign_off):"(在船中)"}</td><td>${(v.cargo_types||[]).join("+")}</td></tr>`).join("")}</tbody>
+        </table>
+      </div>
+    </div>
+    <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn danger" onclick="rejectSubmission('${sub.id}')">❌ 拒絕</button>
+      <button class="btn primary" onclick="approveSubmission('${sub.id}')">✅ 核准並匯入</button>
+    </div>
+  </div>`;
+  document.body.appendChild(host);
+}
+async function approveSubmission(id){
+  const sub=(State.submissions||[]).find(s=>s.id===id);
+  if(!sub) return;
+  const operator=requireChangeAuth();
+  if(!operator) return;
+  try{
+    const {person, voyages}=sub.payload;
+    const {renamed}=await upsertPerson(person, voyages);
+    await sb("PATCH","crew_submissions",{query:`?id=eq.${id}`, body:{status:"approved", reviewed_at:new Date().toISOString(), reviewer:operator}, prefer:"return=minimal"});
+    const host=document.getElementById("submissionReviewHost"); if(host) host.remove();
+    await loadAll();
+    renderSubmissionTable();
+    notify(`已核准並匯入「${person.name}」${renamed? `（因同名疑似不同人已改名為 ${renamed}）`:""}`);
+    logAction("核准網路填單", `${operator}：核准 ${person.name}`);
+  }catch(e){ notify("核准失敗："+e.message,"err"); }
+}
+async function rejectSubmission(id){
+  const sub=(State.submissions||[]).find(s=>s.id===id);
+  const operator=requireChangeAuth();
+  if(!operator) return;
+  if(!confirm(`確定要拒絕「${sub? sub.submitted_name : ""}」這筆填單？`)) return;
+  try{
+    await sb("PATCH","crew_submissions",{query:`?id=eq.${id}`, body:{status:"rejected", reviewed_at:new Date().toISOString(), reviewer:operator}, prefer:"return=minimal"});
+    const host=document.getElementById("submissionReviewHost"); if(host) host.remove();
+    renderSubmissionTable();
+    notify("已拒絕該筆填單");
+    logAction("拒絕網路填單", `${operator}：拒絕 ${sub? sub.submitted_name : id}`);
+  }catch(e){ notify("操作失敗："+e.message,"err"); }
 }
 
 /* ── 船舶船型設定：一次列出所有船統一調整 ── */
@@ -1979,8 +2095,10 @@ document.getElementById("btnShipBulkDelete").addEventListener("click", async ()=
   if(!operator) return;
   if(!confirm(`確定要刪除以下 ${ids.length} 艘船（含所有職位設定）？此動作無法復原：\n${names}`)) return;
   try{
-    const inList=ids.map(id=>`"${id}"`).join(",");
-    await sb("DELETE","crew_ships",{query:`?id=in.(${inList})`, prefer:"return=minimal"});
+    for(const chunk of chunkArray(ids, 80)){
+      const inList=chunk.map(id=>`"${id}"`).join(",");
+      await sb("DELETE","crew_ships",{query:`?id=in.(${inList})`, prefer:"return=minimal"});
+    }
     await loadAll();
     renderCargoTypeTable();
     renderRegistryTable();
