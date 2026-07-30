@@ -341,6 +341,10 @@ table.matrix tr.yellow td{background:var(--yellow)}
         </div>
         <div id="shipConfigHost"></div>
         <div id="shipImportFailBox" style="display:none;margin-bottom:14px"></div>
+        <div class="segbtn" id="matrixDeptSeg" style="margin-bottom:10px">
+          <button type="button" class="on" data-v="deck">甲板 Deck</button>
+          <button type="button" data-v="engine">機艙 Engine</button>
+        </div>
         <div class="matrixwrap"><table class="matrix" id="matrixTable"></table></div>
         <div id="complianceBox" style="margin-top:14px"></div>
         <p class="hint" style="margin:10px 0 20px">黃色列為 SIRE 檢查重點年資。計算規則：Cadet 期間不計入職級年資；在船中航次以「今天」計算天數；「Years on this type of tanker」依船舶配置中設定的船型計算。船名／代碼／船型請到「🔐 資料管理 → 🚢 船舶基本資料設定」統一調整。</p>
@@ -1988,13 +1992,19 @@ function fmtVal(v){
   if(typeof v==="number") return v.toFixed(1);
   return esc(v);
 }
+let matrixDeptView="deck";
 function renderMatrixTable(){
   const ship=State.ships.find(s=>s.id===matrixState.shipId);
   if(!ship){ document.getElementById("matrixTable").innerHTML=""; return; }
-  const cols=computeCols(ship);
+  const allCols=computeCols(ship);
+  const deptRanks = matrixDeptView==="engine" ? ENG : DECK;
+  const cols=allCols.filter(c=> deptRanks.includes(c.rank));
   let html = `<tr><th style="text-align:left;min-width:210px">Qualification of Officers</th>`;
   cols.forEach(c=> html += `<th>${esc(c.post_label)}<small>${esc(c.rank)}</small></th>`);
   html += `</tr>`;
+  if(!cols.length){
+    html += `<tr><td class="hint" style="text-align:center;padding:14px">此船在「${matrixDeptView==="engine"?"機艙":"甲板"}」目前沒有設定職位</td></tr>`;
+  }
   MATRIX_ROWS.forEach(k=>{
     html += `<tr class="${YELLOW_ROWS.has(k)?'yellow':''}"><td class="label">${k}</td>`;
     cols.forEach(c=>{
@@ -2004,21 +2014,40 @@ function renderMatrixTable(){
     html += `</tr>`;
   });
   document.getElementById("matrixTable").innerHTML=html;
-  window._matrixCols = cols;
-  renderComplianceCheck(cols);
+  window._matrixCols = allCols;
+  renderComplianceCheck(allCols);
 }
+document.getElementById("matrixDeptSeg").addEventListener("click", e=>{
+  const btn=e.target.closest("button"); if(!btn) return;
+  document.querySelectorAll("#matrixDeptSeg button").forEach(b=>b.classList.remove("on"));
+  btn.classList.add("on");
+  matrixDeptView=btn.dataset.v;
+  renderMatrixTable();
+});
 
 /* ── 資深/資淺甲級船員合計年資達標檢查 ──
-   門檻依公司規定：
-   Master+C/O 合計：Years with Operator>2、Years in Rank>3、Years on this type of tanker>6
-   2/O+3/O   合計：Years with Operator>1、Years in Rank>1、Years on all types of tanker>1.5 */
-const COMPLIANCE_GROUPS=[
-  {label:"資深甲級船員（Master + C/O 合計）", ranks:["CAPT.","C/O"], checks:[
+   門檻依公司規定，甲板／機艙用同一套門檻比例：
+   資深（Master+C/O 或 C/E+2/E 合計）：Years with Operator>2、Years in Rank>3、Years on this type of tanker>6
+   資淺（2/O+3/O 或 3/E+4/E 合計）：Years with Operator>1、Years in Rank>1、Years on all types of tanker>1.5 */
+const COMPLIANCE_GROUPS_DECK=[
+  {label:"資深甲板船員（Master + C/O 合計）", ranks:["CAPT.","C/O"], checks:[
     {key:"Years with Operator", min:2},
     {key:"Years in Rank", min:3},
     {key:"Years on this type of tanker", min:6},
   ]},
-  {label:"資淺甲級船員（2/O + 3/O 合計）", ranks:["2/O","3/O"], checks:[
+  {label:"資淺甲板船員（2/O + 3/O 合計）", ranks:["2/O","3/O"], checks:[
+    {key:"Years with Operator", min:1},
+    {key:"Years in Rank", min:1},
+    {key:"Years on all types of tanker", min:1.5},
+  ]},
+];
+const COMPLIANCE_GROUPS_ENGINE=[
+  {label:"資深輪機員（C/E + 2/E 合計）", ranks:["C/E","2/E"], checks:[
+    {key:"Years with Operator", min:2},
+    {key:"Years in Rank", min:3},
+    {key:"Years on this type of tanker", min:6},
+  ]},
+  {label:"資淺輪機員（3/E + 4/E 合計）", ranks:["3/E","4/E"], checks:[
     {key:"Years with Operator", min:1},
     {key:"Years in Rank", min:1},
     {key:"Years on all types of tanker", min:1.5},
@@ -2027,7 +2056,8 @@ const COMPLIANCE_GROUPS=[
 function renderComplianceCheck(cols){
   const box=document.getElementById("complianceBox");
   if(!box) return;
-  box.innerHTML = `<div class="compliance-grid">` + COMPLIANCE_GROUPS.map(g=>{
+  const groups = matrixDeptView==="engine" ? COMPLIANCE_GROUPS_ENGINE : COMPLIANCE_GROUPS_DECK;
+  box.innerHTML = `<div class="compliance-grid">` + groups.map(g=>{
     const members = g.ranks.map(r=> cols.find(c=>c.rank===r && c.vals));
     const missing = g.ranks.filter((r,i)=>!members[i]);
     let rowsHtml;
