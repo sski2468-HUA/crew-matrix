@@ -156,11 +156,12 @@ table.tbl th.sortable.sorted .sortarrow{opacity:1;color:var(--signal)}
 
 /* ───── Matrix 表 ───── */
 .matrixwrap{overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:6px}
-table.matrix{border-collapse:collapse;font-size:12.5px;width:100%}
-table.matrix th{background:var(--navy);color:#fff;padding:9px 10px;font-size:12px;font-weight:800;text-align:center;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15)}
+table.matrix{border-collapse:collapse;font-size:12.5px;width:100%;table-layout:fixed}
+table.matrix th{background:var(--navy);color:#fff;padding:9px 10px;font-size:12px;font-weight:800;text-align:center;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);overflow:hidden;text-overflow:ellipsis}
 table.matrix th small{display:block;font-weight:400;font-size:10.5px;color:#9DB0C2}
-table.matrix td{padding:7px 10px;border-bottom:1px solid #edf1f3;text-align:center;white-space:nowrap}
+table.matrix td{padding:7px 10px;border-bottom:1px solid #edf1f3;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 table.matrix td.label{text-align:left;font-weight:600;border-right:1px solid var(--line)}
+table.matrix th:first-child,table.matrix td.label{width:20%}
 table.matrix tr.yellow td{background:var(--yellow)}
 
 /* ───── 抽屜 ───── */
@@ -320,21 +321,8 @@ table.matrix tr.yellow td{background:var(--yellow)}
 
       <div id="matrixSubMatrix">
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-          <span style="position:relative;display:inline-block">
-            <button class="btn sm" id="btnAddShipMenu">➕ 新增／匯入船舶</button>
-            <div id="addShipMenuDrop" class="exportmenu-drop" style="display:none;left:0;right:auto">
-              <div class="exportmenu-item" onclick="runAddShip('manual')">＋ 手動新增船舶</div>
-              <div class="exportmenu-item" onclick="runAddShip('import')">📥 匯入船舶配置（Excel）</div>
-            </div>
-          </span>
-          <span style="position:relative;display:inline-block">
-            <button class="btn sm primary" id="btnExportMenu">⬇ 匯出</button>
-            <div id="exportMenuDrop" class="exportmenu-drop" style="display:none">
-              <div class="exportmenu-item" onclick="runExport('pdf')">📄 PDF（總表＋個人資歷）</div>
-              <div class="exportmenu-item" onclick="runExport('xlsx-matrix')">📊 Excel（僅總表）</div>
-              <div class="exportmenu-item" onclick="runExport('xlsx-full')">📁 Excel（含個人資歷）</div>
-            </div>
-          </span>
+          <button class="btn sm" id="btnAddShipMenu">➕ 新增／匯入船舶</button>
+          <button class="btn sm primary" id="btnExportMenu">⬇ 匯出</button>
           <button class="btn sm" id="btnShipConfig">⚙ 職位設定</button>
           <input type="file" id="shipFileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
           <button class="btn sm danger" style="margin-left:auto" id="btnDeleteCurrentShip">🗑 刪除此船</button>
@@ -567,7 +555,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
       <div class="panelbox" style="margin-bottom:16px;padding:0">
         <div class="collapsible-hd" onclick="toggleAdminSection('cargo')">
           <span class="chev" id="chev-cargo">▸</span><b style="font-size:15px">🚢 船舶基本資料設定</b>
-          <span class="hint">船名／代碼／英文船名／本船船型，一次列出所有船統一調整</span>
+          <span class="hint">船名／代碼／英文船名／本船船型／顯示順序，一次列出所有船統一調整；順序會套用到下拉選單</span>
         </div>
         <div id="sec-cargo" class="collapsible-body" hidden>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
@@ -579,7 +567,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
           </div>
           <div class="tblwrap">
             <table class="tbl" id="cargoTypeTable">
-              <thead><tr><th style="width:34px"><input type="checkbox" id="shipSelectAll"></th><th>船名（中文）</th><th>代碼</th><th>英文船名</th><th>化 Chem</th><th>油/化 Oil/Chem</th><th>油 Oil</th><th>氣體 Gas</th></tr></thead>
+              <thead><tr><th style="width:34px"><input type="checkbox" id="shipSelectAll"></th><th style="width:60px">順序</th><th>船名（中文）</th><th>代碼</th><th>英文船名</th><th>化 Chem</th><th>油/化 Oil/Chem</th><th>油 Oil</th><th>氣體 Gas</th></tr></thead>
               <tbody id="cargoTypeBody"></tbody>
             </table>
           </div>
@@ -830,7 +818,15 @@ const State={ persons:new Map(), ships:[], shipRegistry:[], submissions:[] };
 let _zhCollator;
 try{ _zhCollator=new Intl.Collator("zh-Hant-u-co-stroke",{numeric:true}); }
 catch(e){ _zhCollator={compare:(a,b)=>String(a).localeCompare(String(b),"zh-Hant",{numeric:true})}; }
-function sortShipsByName(list){ return [...list].sort((a,b)=>_zhCollator.compare(a.name,b.name)); }
+function sortShipsByName(list){
+  const hasCustomOrder = list.some(s=>s.sort_order!=null);
+  if(!hasCustomOrder) return [...list].sort((a,b)=>_zhCollator.compare(a.name,b.name));
+  return [...list].sort((a,b)=>{
+    const ao = a.sort_order!=null ? a.sort_order : 999999;
+    const bo = b.sort_order!=null ? b.sort_order : 999999;
+    return (ao-bo) || _zhCollator.compare(a.name,b.name);
+  });
+}
 function sortNamesZh(list){ return [...list].sort((a,b)=>_zhCollator.compare(a,b)); }
 /* 船名只做最基本的自動修正：跟現有船舶清單比對，大小寫/前後空白不同也算同一艘 →
    自動修正成船舶登記的正式名稱。查不到就照船員表上原本填的樣子存，
@@ -910,7 +906,7 @@ function parsePersonSheet(ws, fallbackName){
     manning_agency: s(g("F2")),
   };
   const voyages=[];
-  for(let r=12;r<=44;r++){
+  for(let r=12;r<=150;r++){
     const on=toISO(g(`F${r}`));
     if(!on) continue;
     const isFormula = ws[`G${r}`] && ws[`G${r}`].f;
@@ -988,6 +984,31 @@ function daysMatrix(person, today){
     for(const t of (v.cargo_types||[])) d[v.rank][t]=(d[v.rank][t]||0)+days;
   }
   return d;
+}
+/* ── 職級×船型 資歷統計表：比照原本 Excel 個人資歷最下面那張表 ── */
+function buildPersonRankTypeTable(person){
+  const today=todayISO();
+  const dm=daysMatrix(person, today);
+  const ranks=[...DECK,...ENG];
+  const totals={Chem:0,"Oil/Chem":0,Oil:0,Gas:0,Other:0};
+  const rows=ranks.map(rk=>{
+    const t=dm[rk]||{};
+    const chem=t.Chem||0, oc=t["Oil/Chem"]||0, oil=t.Oil||0, gas=t.Gas||0, other=t.Other||0;
+    const total=chem+oc+oil+gas+other;
+    totals.Chem+=chem; totals["Oil/Chem"]+=oc; totals.Oil+=oil; totals.Gas+=gas; totals.Other+=other;
+    return `<tr><td class="label">${rk} ${RANK_CN[rk]||""}</td><td>${chem}</td><td>${oc}</td><td>${oil}</td><td>${gas}</td><td>${other}</td><td class="mono">${total}</td><td class="mono">${(total/365).toFixed(1)}</td></tr>`;
+  }).join("");
+  const grandTotal=totals.Chem+totals["Oil/Chem"]+totals.Oil+totals.Gas+totals.Other;
+  return `<div class="tblwrap" style="max-height:none;margin-top:8px">
+    <table class="tbl">
+      <thead><tr><th>職級</th><th>化 Chem</th><th>油/化 Oil/Chem</th><th>油 Oil</th><th>液態氣 Gas</th><th>其他 Other</th><th>合計 Days</th><th>合計 Years</th></tr></thead>
+      <tbody>
+        ${rows}
+        <tr style="font-weight:700;background:#f5f8f9"><td class="label">合計 (Days)</td><td>${totals.Chem}</td><td>${totals["Oil/Chem"]}</td><td>${totals.Oil}</td><td>${totals.Gas}</td><td>${totals.Other}</td><td class="mono">${grandTotal}</td><td class="mono">${(grandTotal/365).toFixed(1)}</td></tr>
+        <tr style="font-weight:700;background:#f5f8f9"><td class="label">合計 (Years)</td><td>${(totals.Chem/365).toFixed(1)}</td><td>${(totals["Oil/Chem"]/365).toFixed(1)}</td><td>${(totals.Oil/365).toFixed(1)}</td><td>${(totals.Gas/365).toFixed(1)}</td><td>${(totals.Other/365).toFixed(1)}</td><td class="mono">${grandTotal}</td><td class="mono">${(grandTotal/365).toFixed(1)}</td></tr>
+      </tbody>
+    </table>
+  </div>`;
 }
 function matrixColumn(person, postRank, shipTypes, today){
   const dm=daysMatrix(person, today);
@@ -1645,6 +1666,12 @@ function openPersonEdit(personId){
           <button class="btn primary" onclick="savePersonDrawer('${p.id}')">💾 儲存變更</button>
         </span>
       </div>
+
+      <div style="margin-top:26px">
+        <b style="font-size:14px">職級×船型 資歷統計</b>
+        <span class="hint" style="margin-left:8px">依目前已儲存的航次計算，跟原本 Excel 最下面那張表算法一致</span>
+        ${buildPersonRankTypeTable(p)}
+      </div>
     </div>
   </div>`;
   document.getElementById("content").scrollTop = 0;
@@ -1881,18 +1908,37 @@ async function createShipManual(){
   }catch(e){ notify("新增失敗："+e.message, "err"); }
 }
 function runAddShip(type){
-  document.getElementById("addShipMenuDrop").style.display="none";
   if(type==="manual") createShipManual();
   else if(type==="import") document.getElementById("shipFileInput").click();
 }
-document.getElementById("btnAddShipMenu").addEventListener("click", e=>{
+/* ── 通用浮動選單：掛在 document.body，不受任何區塊的堆疊層級/裁切影響 ──
+   （之前用 position:absolute 掛在按鈕旁邊，會被其他區塊蓋住裁切，改成這個做法徹底解決） */
+function closeFloatMenu(){
+  const m=document.getElementById("floatMenu");
+  if(m) m.remove();
+}
+function openFloatMenu(e, itemsHtml){
   e.stopPropagation();
-  const d=document.getElementById("addShipMenuDrop");
-  d.style.display = d.style.display==="none" ? "" : "none";
-});
-document.addEventListener("click", e=>{
-  const d=document.getElementById("addShipMenuDrop");
-  if(d && d.style.display!=="none" && e.target.id!=="btnAddShipMenu" && !d.contains(e.target)) d.style.display="none";
+  closeFloatMenu();
+  const btn=e.currentTarget;
+  const rect=btn.getBoundingClientRect();
+  const width=240;
+  const menu=document.createElement("div");
+  menu.id="floatMenu";
+  menu.className="exportmenu-drop";
+  const spaceRight=window.innerWidth-rect.left;
+  const alignLeft = spaceRight>=width+10;
+  menu.style.cssText=`position:fixed;display:block;z-index:9999;top:${rect.bottom+4}px;${alignLeft?`left:${rect.left}px;`:`left:${Math.max(8,rect.right-width)}px;`}width:${width}px`;
+  menu.innerHTML=itemsHtml;
+  document.body.appendChild(menu);
+}
+document.addEventListener("click", closeFloatMenu);
+document.addEventListener("scroll", closeFloatMenu, true);
+document.getElementById("btnAddShipMenu").addEventListener("click", e=>{
+  openFloatMenu(e, `
+    <div class="exportmenu-item" onclick="closeFloatMenu();runAddShip('manual')">＋ 手動新增船舶</div>
+    <div class="exportmenu-item" onclick="closeFloatMenu();runAddShip('import')">📥 匯入船舶配置（Excel）</div>
+  `);
 });
 
 /* ════════════════════════════════════════════════════════
@@ -2119,7 +2165,7 @@ function buildBlankPersonTemplate(){
   set(11,9,"Chem"); set(11,10,"Oil/Chem"); set(11,11,"Oil"); set(11,12,"Gas"); set(11,13,"Other");
   for(let i=0;i<15;i++) set(12+i,1,i+1);
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"]=[{wch:6},{wch:10},{wch:8},{wch:16},{wch:3},{wch:13},{wch:13},{wch:7},{wch:6},{wch:8},{wch:6},{wch:6},{wch:6}];
+  ws["!cols"]=PERSON_XLSX_COLS;
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "個人資歷");
   XLSX.writeFile(wb, "個人資歷_空白範本.xlsx");
@@ -2151,6 +2197,8 @@ document.getElementById("btnCopySubmitLink").addEventListener("click", async ()=
    分頁格式比照原本「海上資歷 (Service experience)」個人表，方便船上比對紙本。
    ※ 用的是免費版 SheetJS，寫不出顏色/合併儲存格這類樣式，
    內容、欄位順序跟原表一致，但畫面呈現會是純資料表格，不會有黃底/邊框等美化。 */
+/* 個人資歷表（海上資歷）Excel 統一欄寬，A~M 十三欄，讓匯出的檔案不用再手動調整寬度 */
+const PERSON_XLSX_COLS=[{wch:6},{wch:10},{wch:8},{wch:20},{wch:14},{wch:15},{wch:15},{wch:8},{wch:6},{wch:8},{wch:6},{wch:6},{wch:6}];
 function safeSheetName(name){
   return String(name).replace(/[:\\\/\?\*\[\]]/g,"").slice(0,31) || "sheet";
 }
@@ -2196,7 +2244,7 @@ function exportXlsxFull(){
       let n=2; while(usedNames.has(sheetName)){ sheetName=safeSheetName(c.post_label+n); n++; }
       usedNames.add(sheetName);
       const ws2=XLSX.utils.aoa_to_sheet(buildPersonSheetAOA(person));
-      ws2["!cols"]=[{wch:6},{wch:8},{wch:6},{wch:16},{wch:2},{wch:12},{wch:12},{wch:7},{wch:5},{wch:6},{wch:5},{wch:5},{wch:5}];
+      ws2["!cols"]=PERSON_XLSX_COLS;
       XLSX.utils.book_append_sheet(wb, ws2, sheetName);
     });
     XLSX.writeFile(wb, `${shipLabel(ship)}_船上核對用_${todayISO().replaceAll("-","")}.xlsx`);
@@ -2299,16 +2347,13 @@ function exportPDF(){
 
 /* ── 匯出選單：合併原本三個匯出按鈕 ── */
 document.getElementById("btnExportMenu").addEventListener("click", e=>{
-  e.stopPropagation();
-  const d=document.getElementById("exportMenuDrop");
-  d.style.display = d.style.display==="none" ? "" : "none";
-});
-document.addEventListener("click", e=>{
-  const d=document.getElementById("exportMenuDrop");
-  if(d && d.style.display!=="none" && e.target.id!=="btnExportMenu" && !d.contains(e.target)) d.style.display="none";
+  openFloatMenu(e, `
+    <div class="exportmenu-item" onclick="closeFloatMenu();runExport('pdf')">📄 PDF（總表＋個人資歷）</div>
+    <div class="exportmenu-item" onclick="closeFloatMenu();runExport('xlsx-matrix')">📊 Excel（僅總表）</div>
+    <div class="exportmenu-item" onclick="closeFloatMenu();runExport('xlsx-full')">📁 Excel（含個人資歷）</div>
+  `);
 });
 function runExport(type){
-  document.getElementById("exportMenuDrop").style.display="none";
   if(type==="pdf") exportPDF();
   else if(type==="xlsx-matrix") exportXlsxMatrix();
   else if(type==="xlsx-full") exportXlsxFull();
@@ -2568,21 +2613,40 @@ async function rejectSubmission(id){
 }
 
 /* ── 船舶船型設定：一次列出所有船統一調整 ── */
+let shipOrderIds=null;
 function renderCargoTypeTable(){
   const body=document.getElementById("cargoTypeBody");
   if(!body) return;
-  const ships=sortShipsByName(State.ships);
+  if(!shipOrderIds || shipOrderIds.length!==State.ships.length || !shipOrderIds.every(id=>State.ships.some(s=>s.id===id))){
+    shipOrderIds = sortShipsByName(State.ships).map(s=>s.id);
+  }
+  renderCargoTypeRows();
   document.getElementById("shipSelectAll").checked=false;
   updateShipBulkDeleteBar();
+}
+function renderCargoTypeRows(){
+  const body=document.getElementById("cargoTypeBody");
+  const ships=shipOrderIds.map(id=>State.ships.find(s=>s.id===id)).filter(Boolean);
   body.innerHTML = ships.length
-    ? ships.map(s=>`<tr data-ship="${s.id}">
+    ? ships.map((s,i)=>`<tr data-ship="${s.id}">
         <td><input type="checkbox" class="ship-chk" value="${s.id}" onchange="updateShipBulkDeleteBar()"></td>
+        <td style="white-space:nowrap">
+          <button class="btn sm" ${i===0?"disabled":""} onclick="moveShipOrder('${s.id}',-1)" title="上移">▲</button>
+          <button class="btn sm" ${i===ships.length-1?"disabled":""} onclick="moveShipOrder('${s.id}',1)" title="下移">▼</button>
+        </td>
         <td><input type="text" class="ship-name-edit" data-ship="${s.id}" value="${esc(s.name)}" style="width:130px"></td>
         <td><input type="text" class="ship-code-edit" data-ship="${s.id}" value="${esc(s.code||"")}" style="width:70px"></td>
         <td><input type="text" class="ship-nameen-edit" data-ship="${s.id}" value="${esc(s.name_en||"")}" style="width:150px"></td>
         ${["Chem","Oil/Chem","Oil","Gas"].map(t=>`<td style="text-align:center"><input type="checkbox" class="cargo-chk" data-ship="${s.id}" value="${t}" ${(s.cargo_types||[]).includes(t)?"checked":""}></td>`).join("")}
       </tr>`).join("")
-    : `<tr><td colspan="8" class="hint" style="text-align:center;padding:14px">目前沒有船舶資料</td></tr>`;
+    : `<tr><td colspan="9" class="hint" style="text-align:center;padding:14px">目前沒有船舶資料</td></tr>`;
+}
+function moveShipOrder(id,dir){
+  const i=shipOrderIds.indexOf(id);
+  const j=i+dir;
+  if(j<0||j>=shipOrderIds.length) return;
+  [shipOrderIds[i],shipOrderIds[j]]=[shipOrderIds[j],shipOrderIds[i]];
+  renderCargoTypeRows();
 }
 function updateShipBulkDeleteBar(){
   const n=document.querySelectorAll(".ship-chk:checked").length;
@@ -2674,18 +2738,20 @@ document.getElementById("btnSaveCargoTypes").addEventListener("click", async ()=
       const name=nameEl? nameEl.value.trim() : ship.name;
       const code=codeEl? codeEl.value.trim() : (ship.code||"");
       const name_en=nameEnEl? nameEnEl.value.trim() : (ship.name_en||"");
-      const before=JSON.stringify({n:ship.name, c:ship.code||"", e:ship.name_en||"", t:(ship.cargo_types||[]).slice().sort()});
-      const after=JSON.stringify({n:name, c:code, e:name_en, t:checks.slice().sort()});
+      const newOrder = shipOrderIds? shipOrderIds.indexOf(ship.id) : (ship.sort_order??0);
+      const before=JSON.stringify({n:ship.name, c:ship.code||"", e:ship.name_en||"", t:(ship.cargo_types||[]).slice().sort(), o:ship.sort_order??null});
+      const after=JSON.stringify({n:name, c:code, e:name_en, t:checks.slice().sort(), o:newOrder});
       if(before!==after){
         if(!name){ notify(`${ship.name} 的船名不可空白，已略過`,"err"); continue; }
-        await sb("PATCH","crew_ships",{query:`?id=eq.${ship.id}`, body:{name, code:code||null, name_en:name_en||null, cargo_types:checks}, prefer:"return=minimal"});
+        await sb("PATCH","crew_ships",{query:`?id=eq.${ship.id}`, body:{name, code:code||null, name_en:name_en||null, cargo_types:checks, sort_order:newOrder}, prefer:"return=minimal"});
         changed++;
       }
     }
+    shipOrderIds=null;
     await loadAll();
     renderCargoTypeTable();
     notify(`已儲存，共更新 ${changed} 艘船`);
-    if(changed>0) logAction("修改船舶基本資料", `更新 ${changed} 艘船`);
+    if(changed>0) logAction("修改船舶基本資料", `更新 ${changed} 艘船（含順序）`);
   }catch(e){ notify("儲存失敗："+e.message,"err"); }
 });
 document.getElementById("btnAdminBackup").addEventListener("click", exportBackupFile);
