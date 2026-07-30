@@ -336,8 +336,8 @@ table.matrix tr.yellow td{background:var(--yellow)}
             </div>
           </span>
           <button class="btn sm" id="btnShipConfig">⚙ 職位設定</button>
-          <button class="btn sm danger" id="btnDeleteCurrentShip">🗑 刪除此船</button>
           <input type="file" id="shipFileInput" multiple accept=".xls,.xlsx,.xlsm" style="display:none">
+          <button class="btn sm danger" style="margin-left:auto" id="btnDeleteCurrentShip">🗑 刪除此船</button>
         </div>
         <div id="shipConfigHost"></div>
         <div id="shipImportFailBox" style="display:none;margin-bottom:14px"></div>
@@ -1626,7 +1626,6 @@ function openPersonEdit(personId){
 
       <div style="display:flex;align-items:center;margin:18px 0 8px">
         <b style="font-size:14px">海上資歷（${p.voyages.length} 筆）</b>
-        <button class="btn sm" style="margin-left:auto" onclick="addVoyageRow()">＋ 新增航次</button>
       </div>
       <div class="tblwrap" style="max-height:none">
         <table class="tbl" id="voyageTable">
@@ -1636,8 +1635,11 @@ function openPersonEdit(personId){
       </div>
 
       <div style="margin-top:18px;display:flex">
-        <button class="btn danger sm" onclick="deletePerson('${p.id}')">🗑 刪除此船員</button>
-        <button class="btn primary" style="margin-left:auto" onclick="savePersonDrawer('${p.id}')">💾 儲存變更</button>
+        <button class="btn sm" onclick="addVoyageRow()">＋ 新增航次</button>
+        <span style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn danger sm" onclick="deletePerson('${p.id}')">🗑 刪除此船員</button>
+          <button class="btn primary" onclick="savePersonDrawer('${p.id}')">💾 儲存變更</button>
+        </span>
       </div>
     </div>
   </div>`;
