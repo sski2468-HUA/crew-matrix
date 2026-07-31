@@ -345,7 +345,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
         </div>
         <div class="matrixwrap"><table class="matrix" id="matrixTable"></table></div>
         <div id="complianceBox" style="margin-top:14px"></div>
-        <p class="hint" style="margin:10px 0 20px">黃色列為 SIRE 檢查重點年資。計算規則：Cadet 期間不計入職級年資；在船中航次以「今天」計算天數；「Years on this type of tanker」依船舶配置中設定的船型計算。船名／代碼／船型請到「🔐 資料管理 → 🚢 船舶基本資料設定」統一調整。</p>
+        <p class="hint" style="margin:10px 0 20px">黃色列為 SIRE 檢查重點年資。計算規則：Cadet 期間不計入職級年資；在船中航次以「今天」計算天數；「Years on this type of tanker」依船舶配置中設定的船型計算，化(Chem)與油/化(Oil/Chem)視為互通。船名／代碼／船型請到「🔐 資料管理 → 🚢 船舶基本資料設定」統一調整。</p>
       </div>
 
       <div id="matrixSubConfig" hidden>
@@ -439,7 +439,7 @@ table.matrix tr.yellow td{background:var(--yellow)}
           <tbody>
             <tr><td class="label">Years with Operator</td><td>(今天 − 進公司日) ÷ 365</td></tr>
             <tr><td class="label">Years in Rank</td><td>把這個人所有航次裡「職級＝該職級」的天數全部加總 ÷ 365（在船中的航次算到今天）</td></tr>
-            <tr><td class="label">Years on this type of tanker</td><td>同上職級範圍的天數，但只算「船型」落在<b>本船船舶／職位設定裡勾選的船型</b>（Chem／Oil-Chem／Oil／Gas）的航次 ÷ 365</td></tr>
+            <tr><td class="label">Years on this type of tanker</td><td>同上職級範圍的天數，但只算「船型」落在<b>本船勾選的船型</b>的航次 ÷ 365。<b>化(Chem)跟油/化(Oil/Chem)視為互通</b>——本船只要勾了其中一種，兩種船型的資歷都算數。</td></tr>
             <tr><td class="label">Years of watchkeeping officer</td><td>從該職級（含）以下、到最底層職級為止的天數加總 ÷ 365。甲板：C/O＋2/O＋3/O（不含 Master）；輪機：2/E＋3/E＋4/E（不含 C/E）</td></tr>
             <tr><td class="label">Years on all types of tanker</td><td>同「Years in Rank」的職級天數，但船型只要是 Chem／Oil-Chem／Oil／Gas 其中之一都算（不含 Other），不受本船船型設定限制 ÷ 365</td></tr>
             <tr><td class="label">Months on vessel this tour of duty</td><td>(今天 − 最近一次上船日) ÷ 30</td></tr>
@@ -1013,6 +1013,14 @@ function matrixColumn(person, postRank, shipTypes, today){
   const order = ENG.includes(postRank)? ENG : DECK;
   const idx = Math.max(order.indexOf(postRank), 0);
   const rd=(rk,ts)=>{ const t=dm[rk]||{}; return Object.entries(t).reduce((a,[k,v])=> a+((ts && !ts.includes(k))?0:v), 0); };
+  // 「Years on this type of tanker」比對本船船型時，化(Chem)跟油/化(Oil/Chem)算互通——
+  // 船只要勾了其中一種，兩種船型的資歷都算數，因為化學船跟油化船資歷本來就相通。
+  const thisTankerTypes = (()=>{
+    if(!shipTypes) return shipTypes;
+    const set=new Set(shipTypes);
+    if(set.has("Chem")||set.has("Oil/Chem")){ set.add("Chem"); set.add("Oil/Chem"); }
+    return [...set];
+  })();
   const wkRanks = order.slice(Math.max(idx,1));
   let lastOn=null;
   for(const v of person.voyages) if(!lastOn || v.sign_on>lastOn) lastOn=v.sign_on;
@@ -1023,7 +1031,7 @@ function matrixColumn(person, postRank, shipTypes, today){
     "Radio qualification": person.radio,
     "Years with Operator": person.join_date? dayDiff(person.join_date, today)/365 : null,
     "Years in Rank": rd(postRank)/365,
-    "Years on this type of tanker": order.reduce((a,r)=>a+rd(r,shipTypes),0)/365,
+    "Years on this type of tanker": order.reduce((a,r)=>a+rd(r,thisTankerTypes),0)/365,
     "Years of watchkeeping officer": wkRanks.reduce((a,r)=>a+rd(r),0)/365,
     "Years on all types of tanker": order.reduce((a,r)=>a+rd(r,["Chem","Oil/Chem","Oil","Gas"]),0)/365,
     "Months on vessel this tour of duty": lastOn? dayDiff(lastOn, today)/30 : null,
