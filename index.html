@@ -2491,10 +2491,12 @@ async function savePostRows(shipId){
 }
 
 /* ── 指派船員：輸入姓名關鍵字搜尋、從清單挑選（取代長長的下拉選單）──
-   一次綁定在 document 上（事件代理），船舶/職位設定畫面每次重繪都會自動生效。 */
+   一次綁定在 document 上（事件代理）。用「同一個父層容器裡找」而不是用 data-post 在全站範圍找，
+   是因為現在 Crew Matrix 底下①②③三個子頁籤是同時渲染在畫面裡（只是用 hidden 屬性藏起來），
+   同一個職位在「②職位設定」跟「③船員異動」會各自有一組 data-post 相同的搜尋框，
+   用 data-post 全域查詢會抓到藏起來那一份，導致看起來打字沒反應。 */
 function showPersonCombo(input){
-  const postId=input.dataset.post;
-  const drop=document.querySelector(`.combo-drop[data-post="${postId}"]`);
+  const drop=input.parentElement.querySelector(".combo-drop");
   if(!drop) return;
   const q=input.value.trim().toLowerCase();
   const list=[...State.persons.values()]
@@ -2518,27 +2520,24 @@ document.addEventListener("click", e=>{
   const item=e.target.closest(".combo-item");
   if(item){
     const drop=item.closest(".combo-drop");
-    const postId=drop.dataset.post;
-    const search=document.querySelector(`.cfg-person-search[data-post="${postId}"]`);
-    const hidden=document.querySelector(`.cfg-person-value[data-post="${postId}"]`);
+    const search=drop.parentElement.querySelector(".cfg-person-search");
+    const hidden=drop.parentElement.querySelector(".cfg-person-value");
     if(search) search.value=item.dataset.name||"";
     if(hidden) hidden.value=item.dataset.id||"";
     drop.style.display="none";
     return;
   }
   document.querySelectorAll(".combo-drop").forEach(d=>{
-    const td=d.closest("td");
-    if(td && !td.contains(e.target)) d.style.display="none";
+    if(!d.parentElement.contains(e.target)) d.style.display="none";
   });
 });
 document.addEventListener("focusout", e=>{
   if(!e.target.classList || !e.target.classList.contains("cfg-person-search")) return;
-  const postId=e.target.dataset.post;
+  const input=e.target;
+  const hidden=input.parentElement.querySelector(".cfg-person-value");
+  const drop=input.parentElement.querySelector(".combo-drop");
   setTimeout(()=>{
-    const hidden=document.querySelector(`.cfg-person-value[data-post="${postId}"]`);
-    const input=document.querySelector(`.cfg-person-search[data-post="${postId}"]`);
-    const drop=document.querySelector(`.combo-drop[data-post="${postId}"]`);
-    if(!hidden||!input) return;
+    if(!hidden) return;
     const p=hidden.value? State.persons.get(hidden.value) : null;
     input.value = p? p.name : "";
     if(drop) drop.style.display="none";
