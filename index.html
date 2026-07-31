@@ -1910,7 +1910,7 @@ async function submitBatchChanges(){
   const allActs=[];
   try{
     for(const po of posts){
-      const newPersonId=document.querySelector(`.cfg-person-value[data-post="${po.id}"]`).value || "";
+      const newPersonId=document.querySelector(`#matrixSubChange .cfg-person-value[data-post="${po.id}"]`).value || "";
       const offDateEl=document.querySelector(`.batch-off-date[data-post="${po.id}"]`);
       const onDateEl=document.querySelector(`.batch-on-date[data-post="${po.id}"]`);
       const offDate=offDateEl? offDateEl.value : "";
