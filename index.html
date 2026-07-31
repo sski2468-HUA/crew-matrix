@@ -1668,7 +1668,14 @@ function openPersonEdit(personId){
       </div>
       <div class="tblwrap" style="max-height:none">
         <table class="tbl" id="voyageTable">
-          <thead><tr><th>職級</th><th>船名</th><th>上船日</th><th>下船日</th><th>天數</th><th>船型</th><th>備註</th><th></th></tr></thead>
+          <thead><tr>
+            <th class="sortable" data-sort="rank">職級<span class="sortarrow"></span></th>
+            <th class="sortable" data-sort="ship">船名<span class="sortarrow"></span></th>
+            <th class="sortable" data-sort="on">上船日<span class="sortarrow"></span></th>
+            <th class="sortable" data-sort="off">下船日<span class="sortarrow"></span></th>
+            <th class="sortable" data-sort="days">天數<span class="sortarrow"></span></th>
+            <th>船型</th><th>備註</th><th></th>
+          </tr></thead>
           <tbody id="voyageBody">${voyRows}</tbody>
         </table>
       </div>
@@ -1723,6 +1730,41 @@ function fillOff(btn){
 function addVoyageRow(){
   document.getElementById("voyageBody").insertAdjacentHTML("beforeend", voyageRow({rank:"3/O", ship_name:"", sign_on:todayISO(), sign_off:null, cargo_types:["Oil/Chem"], note:""}, 999));
 }
+/* ── 海上資歷表格排序：直接搬動整列 <tr>，不重新產生內容，才不會把還沒存檔的修改清掉 ── */
+let voyageSort={ col:"on", dir:1 };
+function voyageRowSortKey(tr, col){
+  switch(col){
+    case "rank": { const sel=tr.querySelector(".v-rank"); return sel? sel.value||"" : ""; }
+    case "ship": { const el=tr.querySelector(".v-ship"); return el? el.value.toLowerCase() : ""; }
+    case "on": { const el=tr.querySelector(".v-on"); return el? el.value||"" : ""; }
+    case "off": { const el=tr.querySelector(".v-off"); return (el && el.value)? el.value : "9999-99-99"; } // 在船中排最後
+    case "days": { const el=tr.querySelector(".v-days"); return el? parseFloat(el.textContent)||0 : 0; }
+    default: return "";
+  }
+}
+function sortVoyageTable(col){
+  if(voyageSort.col===col) voyageSort.dir*=-1;
+  else { voyageSort.col=col; voyageSort.dir=1; }
+  const body=document.getElementById("voyageBody");
+  const rows=[...body.querySelectorAll("tr")];
+  rows.sort((ra,rb)=>{
+    const a=voyageRowSortKey(ra,col), b=voyageRowSortKey(rb,col);
+    let c;
+    if(typeof a==="number" && typeof b==="number") c=a-b;
+    else c=String(a).localeCompare(String(b),"zh-Hant",{numeric:true});
+    return c*voyageSort.dir;
+  });
+  rows.forEach(r=>body.appendChild(r));
+  document.querySelectorAll("#voyageTable th.sortable").forEach(th=>{
+    th.classList.toggle("sorted", th.dataset.sort===voyageSort.col);
+    const arrow=th.querySelector(".sortarrow");
+    if(arrow) arrow.textContent = th.dataset.sort===voyageSort.col ? (voyageSort.dir===1?"▲":"▼") : "";
+  });
+}
+document.getElementById("content").addEventListener("click", e=>{
+  const th=e.target.closest("#voyageTable th.sortable");
+  if(th) sortVoyageTable(th.dataset.sort);
+});
 function backToRosterList(){
   document.getElementById("rosterEditView").hidden = true;
   document.getElementById("rosterEditView").innerHTML = "";
